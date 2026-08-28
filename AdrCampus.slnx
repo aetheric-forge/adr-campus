@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AdrCampus.Web/AdrCampus.Web.csproj" />
+  </Folder>
+</Solution>
