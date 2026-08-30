@@ -11,6 +11,20 @@ public sealed class MemberRosterService(
 {
     public const string HttpClientName = "KeycloakDirectory";
 
+    public async Task<bool> IsActiveMemberAsync(
+        string subjectId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(subjectId))
+        {
+            return false;
+        }
+
+        var roster = await GetCurrentAsync(cancellationToken).ConfigureAwait(false);
+        return roster.IsAvailable && roster.Members.Any(member =>
+            string.Equals(member.SubjectId, subjectId, StringComparison.Ordinal));
+    }
+
     public async Task<MemberRosterResult> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         try

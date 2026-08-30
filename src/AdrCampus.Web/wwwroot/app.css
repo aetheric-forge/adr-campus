@@ -16,6 +16,7 @@ h1:focus { outline: none; }
 .button-primary:hover { background: var(--accent-dark); color: #fff; }
 .button-secondary { border-color: #cfd3cd; background: #fff; color: var(--ink); }
 .button:disabled, input:disabled, textarea:disabled { cursor: not-allowed; opacity: .68; }
+.account-signout { padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: .72rem; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .empty-state { min-height: 360px; padding: 56px 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed #c7cbc5; border-radius: 12px; background: rgba(255,255,255,.55); text-align: center; }
 .empty-state p { max-width: 540px; }
 .empty-icon { width: 52px; height: 52px; margin-bottom: 22px; display: grid; place-items: center; border: 1px solid #aabeb0; border-radius: 12px; color: var(--accent); font: 1.5rem Georgia, serif; }

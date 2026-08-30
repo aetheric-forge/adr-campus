@@ -1,15 +1,41 @@
 @inherits LayoutComponentBase
+@using System.Security.Claims
 
 <div class="page">
     <aside class="sidebar"><NavMenu /></aside>
     <main>
         <header class="top-row">
             <div class="organization"><span class="organization-label">Organization</span><strong>Aetheric Forge</strong></div>
-            <div class="account" aria-label="Signed-in account"><span class="avatar" aria-hidden="true">BM</span><span><strong>Brian</strong><small>Maintainer</small></span></div>
+            <AuthorizeView>
+                <Authorized Context="authentication">
+                    <div class="account" aria-label="Signed-in account">
+                        <span class="avatar" aria-hidden="true">@Initials(authentication.User)</span>
+                        <span><strong>@DisplayName(authentication.User)</strong><small>Member</small></span>
+                        <form method="post" action="/account/logout">
+                            <AntiforgeryToken />
+                            <button class="account-signout" type="submit">Sign out</button>
+                        </form>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
         </header>
         <article class="content">@Body</article>
     </main>
 </div>
+
+@code {
+    private static string DisplayName(ClaimsPrincipal user) =>
+        user.FindFirst("name")?.Value ??
+        user.FindFirst("preferred_username")?.Value ??
+        user.Identity?.Name ??
+        "Member";
+
+    private static string Initials(ClaimsPrincipal user)
+    {
+        var words = DisplayName(user).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(words.Take(2).Select(word => char.ToUpperInvariant(word[0])));
+    }
+}
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred. <a href="." class="reload">Reload</a><span class="dismiss">🗙</span>
