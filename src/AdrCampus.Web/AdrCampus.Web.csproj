@@ -7,4 +7,10 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\runtime\src\Abstractions\Interfaces\AethericForge.Runtime.Abstractions.Interfaces\AethericForge.Runtime.Abstractions.Interfaces.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Models\AethericForge.Runtime.Models\AethericForge.Runtime.Models.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Providers\AethericForge.Runtime.Providers.Identity.Keycloak\AethericForge.Runtime.Providers.Identity.Keycloak.csproj" />
+  </ItemGroup>
+
 </Project>

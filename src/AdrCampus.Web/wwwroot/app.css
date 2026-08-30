@@ -35,10 +35,28 @@ h1:focus { outline: none; }
 .feature-card { min-height: 190px; padding: 26px; color: inherit; text-decoration: none; }
 a.feature-card:hover { border-color: #9ab5a4; transform: translateY(-1px); }
 .feature-card p { margin-bottom: 0; }
+.roster-message { min-height: 150px; display: flex; align-items: flex-start; gap: 18px; }
+.roster-message h2 { margin-bottom: 7px; }
+.roster-message p { margin-bottom: 14px; }
+.roster-spinner { width: 24px; height: 24px; flex: 0 0 auto; border: 2px solid #cfdbd3; border-top-color: var(--accent); border-radius: 50%; animation: roster-spin .8s linear infinite; }
+.roster-status-icon { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: #f6e9df; color: #8a3e18; font-weight: 800; }
+.roster-summary { margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.roster-summary p { margin: 0; font-size: .82rem; }
+.member-list { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.member-row { min-height: 82px; padding: 16px 20px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 16px; border-bottom: 1px solid var(--line); }
+.member-row:last-child { border-bottom: 0; }
+.member-avatar { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: #e5eee8; color: var(--accent-dark); font-size: .78rem; font-weight: 800; letter-spacing: .03em; }
+.member-identity h2 { margin: 0; font-size: .98rem; }
+.role-badge { padding: 5px 9px; border: 1px solid #d7dad5; border-radius: 999px; background: #f7f7f4; color: #626963; font-size: .7rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.role-maintainer { border-color: #a8c2b1; background: #edf4ef; color: var(--accent-dark); }
+@keyframes roster-spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
     .page-header { align-items: flex-start; flex-direction: column; }
     .toolbar { flex-direction: column; }
     .search-input { max-width: none; }
     .card-grid { grid-template-columns: 1fr; }
     .form-placeholder { padding: 22px; }
+    .roster-summary { align-items: flex-start; flex-direction: column; gap: 3px; }
+    .member-row { padding: 14px; grid-template-columns: 42px minmax(0, 1fr); }
+    .role-badge { width: max-content; grid-column: 2; }
 }

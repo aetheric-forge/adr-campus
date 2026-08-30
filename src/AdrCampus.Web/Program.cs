@@ -1,10 +1,13 @@
 using AdrCampus.Web.Components;
+using AdrCampus.Web.Members;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddHttpClient(MemberRosterService.HttpClientName);
+builder.Services.AddScoped<MemberRosterService>();
 
 var app = builder.Build();
 
