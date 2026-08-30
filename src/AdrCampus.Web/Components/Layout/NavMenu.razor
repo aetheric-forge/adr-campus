@@ -1,30 +1,27 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">AdrCampus.Web</a>
-    </div>
+<div class="brand-row">
+    <a class="brand" href="" aria-label="ADR Campus home"><span class="brand-mark" aria-hidden="true">A</span><span>ADR Campus</span></a>
 </div>
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
+    <nav aria-label="Primary navigation">
+        <div class="nav-section">
+            <span class="nav-heading">Decision record</span>
+            <div class="nav-item"><NavLink class="nav-link" href="" Match="NavLinkMatch.All"><span class="nav-icon" aria-hidden="true">●</span> Current</NavLink></div>
+            <div class="nav-item"><NavLink class="nav-link" href="proposed"><span class="nav-icon" aria-hidden="true">◷</span> Proposed</NavLink></div>
+            <div class="nav-item"><NavLink class="nav-link" href="historical"><span class="nav-icon" aria-hidden="true">↺</span> Historical</NavLink></div>
+            <div class="nav-item"><NavLink class="nav-link" href="records"><span class="nav-icon" aria-hidden="true">≡</span> All records</NavLink></div>
         </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
+        <div class="nav-section">
+            <span class="nav-heading">Your work</span>
+            <div class="nav-item"><NavLink class="nav-link" href="drafts"><span class="nav-icon" aria-hidden="true">□</span> My drafts</NavLink></div>
+            <div class="nav-item"><NavLink class="nav-link" href="drafts/new"><span class="nav-icon" aria-hidden="true">＋</span> New ADR</NavLink></div>
         </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
+        <div class="nav-section">
+            <span class="nav-heading">Organization</span>
+            <div class="nav-item"><NavLink class="nav-link" href="members"><span class="nav-icon" aria-hidden="true">◎</span> Members</NavLink></div>
+            <div class="nav-item"><NavLink class="nav-link" href="administration"><span class="nav-icon" aria-hidden="true">◇</span> Administration</NavLink></div>
         </div>
     </nav>
 </div>
-

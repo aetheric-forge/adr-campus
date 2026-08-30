@@ -1,0 +1,10 @@
+@page "/drafts/new"
+<PageTitle>New ADR</PageTitle>
+<div class="page-header"><div><span class="eyebrow">New draft</span><h1>Draft an architectural decision</h1><p>Capture the reasoning now; only the title is required to save a draft.</p></div></div>
+<section class="form-placeholder">
+    <label for="title">Title <span>Required</span></label><input id="title" type="text" placeholder="What are we deciding?" disabled />
+    <label for="context">Context</label><textarea id="context" rows="4" placeholder="What forces make this decision necessary?" disabled></textarea>
+    <label for="decision">Decision</label><textarea id="decision" rows="4" placeholder="What are we proposing?" disabled></textarea>
+    <label for="consequences">Consequences</label><textarea id="consequences" rows="4" placeholder="What are the positive and negative consequences?" disabled></textarea>
+    <div class="form-actions"><a class="button button-secondary" href="drafts">Cancel</a><button class="button button-primary" disabled>Save draft</button></div>
+</section>

@@ -1,7 +1,15 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Current decisions</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="page-header">
+    <div><span class="eyebrow">Decision record</span><h1>Current decisions</h1><p>Accepted architectural decisions currently in effect.</p></div>
+    <a class="button button-primary" href="drafts/new">New ADR</a>
+</div>
 
-Welcome to your new app.
+<section class="empty-state" aria-labelledby="empty-current-title">
+    <span class="empty-icon" aria-hidden="true">A</span>
+    <h2 id="empty-current-title">No accepted decisions yet</h2>
+    <p>Once a maintainer accepts a proposal, it will appear here as part of the current architectural record.</p>
+    <a class="button button-secondary" href="drafts/new">Draft the first decision</a>
+</section>
