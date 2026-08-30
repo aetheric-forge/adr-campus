@@ -119,6 +119,8 @@ ADR Campus maintains only the local projection required to apply ADR lifecycle r
 - the time ADR Campus observed the transition; and
 - any ADR-specific recovery effects initiated by the transition.
 
+SSO display-name changes apply retroactively wherever a person is presented. Changes to identifying properties, such as an email address, are preserved as effective-dated history: events before the change retain the earlier value and later events use the newer value. The stable SSO identity reference, rather than any mutable display or identifying property, connects those versions to the same person.
+
 The SSO control plane remains the authoritative audit source for who changed a user or group and when that control-plane action occurred. ADR Campus must not invent or infer a human administrator for an externally observed change.
 
 ### Member added
@@ -172,6 +174,8 @@ ADR Campus records application-owned administrative events:
 This history is read-only and visible to active maintainers. It complements but does not replace the SSO control plane's user and group audit log.
 
 Ordinary members may see the current roster and roles but not application-administration history or private draft-recovery information.
+
+Active maintainers may also open the dedicated draft-recovery view defined by the drafting journey. That view is an administrative surface, not part of shared ADR discovery.
 
 ## Alternate and Failure Scenarios
 
@@ -326,6 +330,12 @@ then ADR Campus removes that whitespace before persisting it.
 Given an effective SSO group state ADR Campus has already processed,
 when synchronization presents the same state again,
 then ADR Campus creates no duplicate membership projection, transition history, or draft-recovery effect.
+
+### Preserve identity-property history
+
+Given a stable SSO identity whose display name or another identifying property changes,
+when ADR Campus observes the updated identity,
+then it uses the current display name wherever that person is presented, preserves earlier identifying-property values with earlier events, and associates both the earlier and later values with the same stable identity.
 
 ## Out of Scope
 

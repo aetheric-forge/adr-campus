@@ -55,7 +55,9 @@ A draft is personal working material. While its author is an active member, it i
 
 If the author ceases to be an active member, a maintainer may access the draft solely to reassign it during a 30-day recovery window. Other members cannot access it. A successful reassignment identifies a new active member as the author and records the previous author, new author, responsible maintainer, and time of reassignment in the ADR's history.
 
-If no maintainer reassigns the draft within 30 days after its author ceases to be an active member, the draft expires and can no longer be viewed, edited, reassigned, or proposed. Expired draft content is not part of the organization's decision record.
+If no maintainer reassigns the draft within 30 days after its author ceases to be an active member, the draft enters an expired state and is treated as though it does not exist anywhere in the web application. It can no longer be listed, viewed, edited, reassigned, previewed, or proposed. A background maintenance task periodically purges expired drafts and their content from storage. Expired draft content is not part of the organization's decision record.
+
+Maintainers recover drafts through a dedicated recovery view that is separate from shared ADR discovery. The view lists only drafts whose authors are no longer active and whose recovery windows remain open. It exposes the draft identifier, title, former author, expiration time, and the controls needed to select an active member and complete reassignment. Access to the draft's full content remains limited to the recovery operation and is not exposed through browse, search, result counts, or ordinary direct-record access.
 
 The application must not describe or visually present a draft as an accepted organizational decision.
 
@@ -72,6 +74,8 @@ The application must not describe or visually present a draft as an accepted org
 - A draft may be reassigned only to an active organization member.
 - Reassignment must be recorded in the ADR's history and must not change its identifier or `Draft` status.
 - An unreassigned draft expires 30 days after its author ceases to be an active member.
+- Expiration makes a draft immediately inaccessible even if background purging has not yet removed its stored content.
+- A background maintenance task periodically purges expired drafts.
 - Drafting does not grant the author authority to accept an ADR on behalf of the organization.
 
 ## Alternate and Failure Scenarios
@@ -100,7 +104,7 @@ A maintainer may access the draft during the 30-day recovery window and reassign
 
 ### The recovery window expires
 
-If a departed member's draft is not reassigned within 30 days, ADR Campus expires it. A later attempt to view, revise, reassign, preview, or propose the draft is refused and does not restore the draft.
+If a departed member's draft is not reassigned within 30 days, ADR Campus expires it and removes it from every web application view. A later attempt to list, view, revise, reassign, preview, or propose the draft is refused and does not restore the draft. Background maintenance may purge it at any later time without changing its already-inaccessible behavior.
 
 ### Saving fails
 
@@ -178,6 +182,12 @@ Given a draft whose author is no longer an active member and whose recovery wind
 when a non-maintainer attempts to access or reassign it,
 then ADR Campus reveals no draft content and persists no change.
 
+### List drafts eligible for recovery
+
+Given one or more drafts whose authors are no longer active and whose recovery windows remain open,
+when an active maintainer opens the dedicated recovery view,
+then ADR Campus lists each eligible draft by identifier, title, former author, and expiration time and provides reassignment controls without adding the drafts to shared discovery.
+
 ### Expire an unreassigned draft
 
 Given a draft whose author ceased to be an active member 30 days ago and which has not been reassigned,
@@ -189,6 +199,12 @@ then ADR Campus expires the draft and no longer permits it to be viewed, revised
 Given that a draft has changed since the author opened it,
 when the author attempts to save an older version,
 then ADR Campus preserves the newer persisted version and informs the author of the conflict.
+
+### Purge an expired draft
+
+Given a draft whose recovery window has expired,
+when background maintenance processes expired drafts,
+then ADR Campus permanently removes the draft and its content from storage without first making it accessible anywhere in the web application.
 
 ### Keep authority unambiguous
 
@@ -226,6 +242,8 @@ The architecture must support:
 - author-only access to draft content;
 - time-bounded maintainer access to departed members' drafts;
 - auditable reassignment and draft expiration;
+- a maintainer-only recovery read model that remains separate from shared discovery;
+- background expiration processing and eventual purging of expired draft content;
 - explicit ADR lifecycle state;
 - durable creation and modification metadata;
 - validation that distinguishes draft requirements from proposal requirements;

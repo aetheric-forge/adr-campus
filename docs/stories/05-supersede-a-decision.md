@@ -242,7 +242,7 @@ then ADR Campus does not report success and does not leave either ADR transition
 ### Make supersession idempotent
 
 Given a replacement whose acceptance already completed supersession,
-when the same acceptance request is repeated,
+when an acceptance request with the same client-generated operation identifier is repeated,
 then ADR Campus creates no duplicate decision event or relationship and preserves the original statuses, decider, decision time, and supersession time.
 
 ### Preserve discovery semantics

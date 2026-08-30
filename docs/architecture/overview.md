@@ -78,7 +78,7 @@ The Runtime provides institutional capabilities; ADR Campus owns the meaning of 
 - visibility and authorization rules; and
 - the history and relationships produced by successful transitions.
 
-Each command is authorized and validated when it is committed, not merely when its page is opened. Transitions that affect several records or projections—especially proposal, decision, reassignment, and supersession—are atomic and idempotent. Concurrent attempts must produce one coherent outcome rather than partially changing the decision record.
+Each command is authorized and validated when it is committed, not merely when its page is opened. Protected commands derive Member and Maintainer authority from the configured SSO member and maintainer groups. Clients generate unique operation identifiers for mutation commands and reuse an identifier when retrying the same operation. Transitions that affect several records or projections—especially proposal, decision, reassignment, and supersession—are atomic and idempotent. Concurrent attempts must produce one coherent outcome rather than partially changing the decision record.
 
 The workflow coordinates institutions through their public contracts. It does not reach through an Institution to select its provider, storage engine, or internal authority.
 
@@ -105,6 +105,8 @@ ADR Campus distinguishes three forms of state:
 | Historical evidence | Immutable lifecycle, attribution, and administration history     | Archive                       |
 
 These may share one physical store in the first deployment. Their different meanings and access rules remain explicit even when infrastructure is consolidated.
+
+An expired draft is not historical evidence or shared knowledge. It becomes inaccessible throughout the web application at its deadline, and a background maintenance task subsequently purges its content from storage.
 
 The application treats persisted domain state as authoritative for ADR lifecycle and treats sufficiently current SSO state as authoritative for access. Cached or projected data may improve reads, but it cannot grant authority, expose a private draft, or report a transition that has not committed. Protected mutations fail closed when current authority cannot be established.
 

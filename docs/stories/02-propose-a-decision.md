@@ -71,6 +71,7 @@ This prevents reviewers from making a decision about content that changes during
 - Proposal makes the ADR content read-only.
 - Proposal does not accept or reject the ADR.
 - Proposal does not imply endorsement by a maintainer or by the organization.
+- The client supplies a unique operation identifier with the proposal command and reuses it when retrying that operation.
 
 ## Alternate and Failure Scenarios
 
@@ -187,7 +188,7 @@ then ADR Campus does not report success and leaves no partially proposed or part
 ### Make proposal idempotent
 
 Given an ADR that has already been successfully proposed,
-when the same proposal request is repeated,
+when a proposal request with the same client-generated operation identifier is repeated,
 then ADR Campus creates no duplicate ADR or proposal event and preserves the original proposal time.
 
 ### Keep authority unambiguous
@@ -218,6 +219,7 @@ The architecture must support:
 - authorization based on active membership and current authorship;
 - a preview tied to the exact draft revision being confirmed;
 - an atomic and idempotent `Draft` to `Proposed` transition;
+- client-generated operation identifiers used to recognize retries;
 - immutable proposed content;
 - durable proposer and proposal-time metadata;
 - organization-wide member visibility without public exposure; and

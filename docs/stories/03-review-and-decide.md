@@ -77,6 +77,7 @@ Its rejected content and decision metadata are read-only. Later reconsideration 
 - A decision records exactly one decider and one decision time.
 - Rejection records exactly one non-empty reason.
 - Acceptance may record one optional note.
+- The client supplies a unique operation identifier with each decision command and reuses it when retrying that operation.
 - A decision does not change the ADR's identifier, author, proposer, proposal time, or proposed content.
 - A decided ADR remains visible to active organization members and inaccessible to non-members.
 - Loss of membership by the proposal's author does not remove or invalidate the shared proposal.
@@ -196,7 +197,7 @@ then ADR Campus does not report success and leaves no partially accepted or reje
 ### Make the decision idempotent
 
 Given an ADR that has already been decided by a successful request,
-when that same decision request is repeated,
+when a decision request with the same client-generated operation identifier is repeated,
 then ADR Campus creates no duplicate decision event and preserves the original status, decider, decision time, and note.
 
 ### Preserve organization-only visibility
@@ -234,6 +235,7 @@ The architecture must support:
 - revalidation of authority when a decision is persisted;
 - a decision confirmation tied to the exact proposal reviewed;
 - atomic and idempotent `Proposed` to `Accepted` or `Rejected` transitions;
+- client-generated operation identifiers used to recognize retries;
 - deterministic resolution of concurrent decisions;
 - immutable decided content and metadata;
 - durable outcome, decider, decision-time, and note metadata;

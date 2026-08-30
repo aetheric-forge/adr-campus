@@ -60,7 +60,7 @@ The member can select:
 
 Within **All shared records**, the member may filter by any combination of `Proposed`, `Accepted`, `Rejected`, and `Superseded` statuses. Selecting no status filter is equivalent to including all shared statuses.
 
-Results are ordered by their most recent lifecycle event, newest first, with the stable ADR identifier used to break ties. Repeating the same browse request against unchanged records produces the same order.
+Results are ordered by their most recent shared lifecycle event, newest first, with the stable ADR identifier used to break ties. The relevant event is proposal for a `Proposed` ADR, decision for an `Accepted` or `Rejected` ADR, and completed supersession for a `Superseded` ADR. Draft creation, editing, recovery, and author reassignment do not affect this ordering. Repeating the same browse request against unchanged records produces the same order.
 
 Each result column that supports sorting has an interactive heading. The member can sort by:
 
@@ -71,6 +71,8 @@ Each result column that supports sorting has an interactive heading. The member 
 - relevant lifecycle date.
 
 Selecting a sortable heading makes that column the primary sort. Selecting it again reverses the direction. ADR Campus visibly identifies the active sort column and direction and always uses the stable ADR identifier as the final tie-breaker. Sorting is performed by the server over the complete matching result set, not only over the records on the current page.
+
+For the relevant lifecycle date column, a `Proposed` ADR uses its proposal date, an `Accepted` or `Rejected` ADR uses its decision date, and a `Superseded` ADR uses its supersession date. Every shared ADR therefore has an applicable value for this column.
 
 ## Search
 
@@ -162,7 +164,7 @@ The detail view makes the authority of the record unambiguous:
 - `Rejected` was considered but not adopted; and
 - `Superseded` was once accepted but has been replaced.
 
-Historical people remain identified on the ADR after they leave the organization. Their recorded actions are part of the durable organizational history.
+Historical people remain identified on the ADR after they leave the organization. Their current display name is resolved retroactively from SSO when available. Identifying-property changes, such as an email-address change, are recorded with the effective identity values in lifecycle history so earlier events retain the earlier values and later events show the later values. Their recorded actions are part of the durable organizational history.
 
 ## Authorization and Visibility Rules
 
@@ -235,7 +237,7 @@ then ADR Campus returns only shared ADRs having a selected status and identifies
 
 Given multiple matching shared ADRs,
 when ADR Campus returns browse results without a member-selected sort,
-then it orders them by most recent lifecycle event descending and uses stable ADR identifier to break ties.
+then it orders them by proposal date for `Proposed`, decision date for `Accepted` and `Rejected`, and supersession date for `Superseded`, all descending, and uses stable ADR identifier to break ties without considering draft reassignment.
 
 ### Rank complete search results
 
@@ -254,6 +256,12 @@ then ADR Campus sorts the complete matching result set by that column, visibly i
 Given results already sorted by a selected column,
 when the member selects the same column heading again,
 then ADR Campus reverses the primary sort direction and preserves stable ADR identifier as the final tie-breaker.
+
+### Sort by relevant lifecycle date
+
+Given shared ADRs in more than one lifecycle status,
+when an active member sorts by relevant lifecycle date,
+then ADR Campus uses proposal date for `Proposed`, decision date for `Accepted` and `Rejected`, and supersession date for `Superseded` before applying the stable ADR identifier tie-breaker.
 
 ### Search shared ADR content
 
@@ -346,6 +354,12 @@ then ADR Campus opens the related shared ADR and makes the direction of the rela
 Given a shared ADR whose author, proposer, or decider is no longer active,
 when an active member reads the ADR,
 then ADR Campus still identifies that person and their recorded action without representing them as a current member.
+
+### Reflect identity-property changes
+
+Given an SSO identity whose display name or other identifying property has changed,
+when an active member reads an attributed ADR,
+then ADR Campus presents the current display name retroactively and preserves the identifying-property value effective at each recorded lifecycle event.
 
 ### Distinguish empty states
 
