@@ -1,7 +1,9 @@
 using AdrCampus.Application.Drafts;
 using AdrCampus.Application.Identity;
+using AdrCampus.Application.Proposals;
 using AdrCampus.Core.Domain;
 using AdrCampus.Core.Drafts;
+using AdrCampus.Core.Proposals;
 using AdrCampus.Providers.Drafts.InMemory;
 using AdrCampus.Providers.Drafts.Workbench;
 using AethericForge.Runtime.Abstractions.Interfaces.Staging.Providers;
@@ -91,8 +93,10 @@ else
     builder.Services.AddSingleton<IStagingProvider>(services => new RedisStagingProvider(services.GetRequiredService<IConnectionMultiplexer>(), "adr-campus-workbench"));
 }
 builder.Services.AddSingleton<IDraftRepository, WorkbenchDraftRepository>();
+builder.Services.AddSingleton<IProposalRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
 builder.Services.AddScoped<IMemberAuthority, KeycloakMemberAuthority>();
 builder.Services.AddScoped<DraftApplicationService>();
+builder.Services.AddScoped<ProposalApplicationService>();
 builder.Services.AddSingleton(new CurrentOrganization(
     new OrganizationId(builder.Configuration["Organization:Id"]!)));
 

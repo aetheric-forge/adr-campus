@@ -118,6 +118,12 @@ public sealed class MemberRosterService(
         }
     }
 
+    public async Task<MemberDisplayNames> GetDisplayNamesAsync(CancellationToken cancellationToken = default)
+    {
+        var roster = await GetCurrentAsync(cancellationToken).ConfigureAwait(false);
+        return new MemberDisplayNames(roster.IsAvailable, roster.Members.ToDictionary(member => member.SubjectId, member => member.DisplayName, StringComparer.Ordinal));
+    }
+
     private static string Required(string value, string configurationKey)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -168,6 +174,13 @@ public sealed class MemberRosterService(
 }
 
 public sealed record MemberRosterItem(string SubjectId, string DisplayName, bool IsMaintainer);
+
+public sealed record MemberDisplayNames(bool IsAvailable, IReadOnlyDictionary<string, string> Names)
+{
+    public string For(string subjectId) => Names.TryGetValue(subjectId, out var displayName)
+        ? displayName
+        : IsAvailable ? "Former member" : "Member name unavailable";
+}
 
 public sealed record CurrentMembership(bool IsAvailable, bool IsMember, bool IsMaintainer)
 {
