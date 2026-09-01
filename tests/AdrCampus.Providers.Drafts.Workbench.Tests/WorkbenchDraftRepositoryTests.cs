@@ -1,4 +1,5 @@
 using AdrCampus.Core.Domain;
+using AdrCampus.Core.Discovery;
 using AdrCampus.Core.Drafts;
 using AdrCampus.Core.Proposals;
 using AdrCampus.Providers.Drafts.Workbench;
@@ -104,6 +105,25 @@ public sealed class WorkbenchDraftRepositoryTests
         var first = await repository.DecideAsync(Organization, proposal.Id, proposal.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Rejected, "  Missing evidence  ", operation, Now.AddMinutes(2));
         var retry = await new WorkbenchDraftRepository(staging).DecideAsync(Organization, proposal.Id, proposal.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Rejected, "  Missing evidence  ", operation, Now.AddHours(1));
         Assert.Equal(DecisionWriteStatus.AlreadyApplied, retry.Status); Assert.Equal(first.Record, retry.Record); Assert.Equal("Missing evidence", retry.Record!.FinalDecision!.Note);
+    }
+
+    [Fact]
+    public async Task SharedDiscoveryIsOrganizationScopedAndExcludesDrafts()
+    {
+        var repository = new WorkbenchDraftRepository(new InMemoryStagingProvider("workbench"));
+        var privateDraft = CompleteDraft();
+        await repository.CreateAsync(privateDraft, OperationId.New());
+        var shared = await Proposed(repository);
+        var otherOrganization = new OrganizationId("other");
+        var otherDraft = AdrDraft.Create(AdrId.New(), otherOrganization, Author, new DraftContent("Other decision", "Context", "Decision", "Consequences"), Now);
+        await repository.CreateAsync(otherDraft, OperationId.New());
+        await repository.ProposeAsync(otherOrganization, Author, otherDraft.Id, otherDraft.Version, OperationId.New(), Now.AddMinutes(1));
+
+        var results = await repository.ListSharedAsync(Organization);
+
+        Assert.Single(results);
+        Assert.Equal(shared.Id, results[0].Id);
+        Assert.DoesNotContain(results, record => record.Id == privateDraft.Id || record.OrganizationId == otherOrganization);
     }
 
     private static AdrDraft Draft() => AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Choose a database"), Now);

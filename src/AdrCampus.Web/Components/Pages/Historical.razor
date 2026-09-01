@@ -1,16 +1,7 @@
 @page "/historical"
-@using AdrCampus.Application.Proposals
-@using AdrCampus.Core.Domain
-@using AdrCampus.Core.Proposals
-@using AdrCampus.Web.Drafts
-@using AdrCampus.Web.Members
-@inject AuthenticationStateProvider AuthenticationStateProvider
-@inject ProposalApplicationService Proposals
-@inject CurrentOrganization Organization
-@inject MemberRosterService Roster
+@using AdrCampus.Core.Discovery
+@using AdrCampus.Web.Components.Discovery
 <PageTitle>Historical decisions</PageTitle>
 <div class="page-header"><div><span class="eyebrow">Decision record</span><h1>Historical decisions</h1><p>Rejected proposals and decisions replaced by later ADRs.</p></div></div>
-@if (_loading) { <section class="placeholder-panel"><h2>Loading historical decisions</h2></section> }
-else if (_items.Count == 0) { <section class="placeholder-panel"><h2>No historical records</h2><p>Rejected and superseded ADRs will remain available here.</p></section> }
-else { <section class="draft-list">@foreach (var item in _items) { <a class="draft-row" href="@($"proposals/{item.Id.Value:D}")"><span class="draft-identity"><strong>@item.Title.Value</strong><small>Rejected @item.Decision.DecidedAtUtc.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt") · Author @_names.For(item.AuthorId.Value) · Decider @_names.For(item.Decision.DeciderId.Value)</small></span><span class="role-badge role-rejected">Rejected</span></a> }</section> }
-@code { private IReadOnlyList<DecidedSummary> _items = []; private MemberDisplayNames _names = new(false, new Dictionary<string, string>()); private bool _loading = true; protected override async Task OnInitializedAsync() { try { var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var sub = auth.User.FindFirst("sub")?.Value; if (string.IsNullOrWhiteSpace(sub)) return; var result = await Proposals.ListDecidedAsync(Organization.Id, new MemberId(sub), DecisionOutcome.Rejected); if (result.IsAuthorized && result.Value is not null) { _items = result.Value; _names = await Roster.GetDisplayNamesAsync(); } } finally { _loading = false; } } }
+<SharedRecordList View="SharedRecordView.Historical" ViewLabel="Historical decisions" EmptyTitle="No historical records" EmptyMessage="Shared ADRs exist, but none have been rejected or superseded." Sort="@Sort" Direction="@Direction" Page="@(Page ?? 1)" Search="@Query" />
+@code { [SupplyParameterFromQuery] public string? Sort { get; set; } [SupplyParameterFromQuery] public string? Direction { get; set; } [SupplyParameterFromQuery] public int? Page { get; set; } [SupplyParameterFromQuery(Name = "query")] public string? Query { get; set; } }

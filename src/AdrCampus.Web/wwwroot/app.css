@@ -54,6 +54,43 @@ h1:focus { outline: none; }
 .role-proposed { border-color: #d9bd72; background: #fff8df; color: #654d16; }
 .role-accepted { border-color: #9fc4ac; background: #edf7f0; color: #245b3c; }
 .role-rejected { border-color: #d7aaa4; background: #fff2f0; color: #812d25; }
+.role-superseded { border-color: #b7b5c8; background: #f2f1f8; color: #4f4a73; }
+.filter-panel { margin-bottom: 18px; padding: 16px 18px; display: flex; align-items: end; justify-content: space-between; gap: 18px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); }
+.omnibar { position: relative; margin-bottom: 14px; }
+.omnibar-form { display: flex; gap: 9px; }
+.omnibar-form .search-input { max-width: none; }
+.suggestion-panel { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; width: min(620px, 100%); overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: 0 8px 24px rgba(25,36,30,.14); }
+.suggestion-panel > a, .suggestion-panel[aria-live] { padding: 11px 14px; display: flex; flex-direction: column; color: var(--ink); text-decoration: none; }
+.suggestion-panel > a + a { border-top: 1px solid var(--line); }
+.suggestion-panel > a:hover { background: #f7f8f5; }
+.suggestion-panel small { color: var(--muted); }
+.suggestion-panel .view-all { color: var(--accent); font-weight: 800; }
+.filter-panel fieldset { margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 12px; border: 0; }
+.filter-panel legend { margin-bottom: 7px; font-size: .78rem; font-weight: 800; }
+.filter-panel label { font-size: .86rem; }
+.filter-actions, .pagination { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.result-summary { margin: 0 2px 10px; display: flex; justify-content: space-between; color: var(--muted); font-size: .82rem; }
+.record-table { overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); }
+.record-columns, .record-row { padding: 13px 16px; display: grid; grid-template-columns: 110px minmax(180px, 1.8fr) 110px minmax(130px, 1fr) minmax(180px, 1.2fr); align-items: center; gap: 14px; }
+.record-columns { border-bottom: 1px solid var(--line); background: #f7f7f4; }
+.record-columns a { color: var(--ink); font-size: .76rem; font-weight: 800; text-decoration: none; }
+.record-columns a[aria-current="true"] { color: var(--accent); }
+.record-row { min-height: 72px; color: var(--ink); text-decoration: none; }
+.record-row + .record-row { border-top: 1px solid var(--line); }
+.record-row:hover { background: #fafbf8; color: var(--ink); }
+.record-row small { display: block; margin-top: 3px; color: var(--muted); }
+.record-id { font-family: ui-monospace, monospace; font-size: .78rem; }
+.record-metadata { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.record-metadata div { display: flex; flex-direction: column; gap: 3px; }
+.record-metadata small { color: var(--muted); }
+.lifecycle-history { margin-top: 24px; padding: 26px 28px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.lifecycle-history ol { margin: 0; padding: 0; list-style: none; }
+.lifecycle-history li { position: relative; padding: 0 0 22px 28px; }
+.lifecycle-history li:not(:last-child)::before { content: ""; position: absolute; left: 6px; top: 13px; bottom: 0; border-left: 2px solid var(--line); }
+.lifecycle-history li:last-child { padding-bottom: 0; }
+.history-marker { position: absolute; left: 0; top: 5px; width: 14px; height: 14px; border: 3px solid var(--paper); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.lifecycle-history p { margin: 3px 0 0; }
+.pagination { margin-top: 18px; }
 .form-actions { margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px; }
 .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .feature-card { min-height: 190px; padding: 26px; color: inherit; text-decoration: none; }
@@ -82,5 +119,11 @@ a.feature-card:hover { border-color: #9ab5a4; transform: translateY(-1px); }
     .form-placeholder { padding: 22px; }
     .roster-summary { align-items: flex-start; flex-direction: column; gap: 3px; }
     .member-row { padding: 14px; grid-template-columns: 42px minmax(0, 1fr); }
+    .filter-panel { align-items: stretch; flex-direction: column; }
+    .omnibar-form { flex-wrap: wrap; }
+    .filter-actions { justify-content: flex-start; }
+    .record-table { overflow-x: auto; }
+    .record-columns, .record-row { min-width: 760px; }
+    .record-metadata { grid-template-columns: 1fr; }
     .role-badge { width: max-content; grid-column: 2; }
 }

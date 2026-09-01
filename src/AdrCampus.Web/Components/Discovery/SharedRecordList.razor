@@ -1,0 +1,123 @@
+@using AdrCampus.Application.Discovery
+@using AdrCampus.Core.Discovery
+@using AdrCampus.Core.Domain
+@using AdrCampus.Web.Drafts
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DiscoveryApplicationService Discovery
+@inject CurrentOrganization Organization
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="omnibar">
+    <form class="omnibar-form" method="get" action="@BasePath">
+        <input class="search-input" type="search" name="query" value="@_searchInput" placeholder="Search shared ADRs" aria-label="Search shared ADRs" autocomplete="off" @oninput="SearchInputAsync" />
+        @foreach (var status in _statuses.OrderBy(value => value)) { <input type="hidden" name="status" value="@status" /> }
+        @if (_sort is not null) { <input type="hidden" name="sort" value="@_sort" /><input type="hidden" name="direction" value="@_direction" /> }
+        <button class="button button-primary" type="submit">Search</button>
+    </form>
+    @if (_suggesting) { <div class="suggestion-panel" aria-live="polite">Searching…</div> }
+    else if (_suggestions.Count > 0) { <div class="suggestion-panel" role="listbox">@foreach (var item in _suggestions) { <a href="@DetailUrl(item.Id)" role="option"><strong>@item.Title.Value</strong><small>@item.Status · @item.AuthorDisplayName</small></a> }@if (_suggestionsHaveMore) { <a class="view-all" href="@BuildUrl(page: 1)">View all results</a> }</div> }
+</div>
+
+@if (View == SharedRecordView.All)
+{
+    <form class="filter-panel" method="get" action="records">
+        <fieldset><legend>Status</legend>@foreach (var status in SharedStatuses) { <label><input type="checkbox" name="status" value="@status" checked="@_statuses.Contains(status)" /> @status</label> }</fieldset>
+        @if (_sort is not null) { <input type="hidden" name="sort" value="@_sort.ToString()" /><input type="hidden" name="direction" value="@_direction.ToString()" /> }
+        @if (!string.IsNullOrWhiteSpace(_searchInput)) { <input type="hidden" name="query" value="@_searchInput" /> }
+        <div class="filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" href="records">Clear filters</a></div>
+    </form>
+}
+
+@if (_loading) { <section class="placeholder-panel" aria-live="polite"><h2>Loading @ViewLabel.ToLowerInvariant()</h2></section> }
+else if (_parseInvalid || _result?.Status == DiscoveryQueryStatus.Invalid) { <section class="placeholder-panel" role="alert"><h2>Invalid result request</h2>@if (_result?.Errors.Count > 0) { <ul>@foreach (var error in _result.Errors) { <li>@error.Message</li> }</ul> } else { <p>One or more filters, sorting choices, or page values are not supported.</p> }<a class="button button-secondary" href="@BasePath">Clear controls</a></section> }
+else if (_result?.Status == DiscoveryQueryStatus.Unauthorized) { <section class="placeholder-panel" role="alert"><h2>Decision record unavailable</h2><p>Current organization membership could not be established.</p></section> }
+else if (_result?.Status == DiscoveryQueryStatus.Unavailable) { <section class="placeholder-panel" role="alert"><h2>Decision record temporarily unavailable</h2><p>No partial result set is being shown. Refresh the page to try again.</p></section> }
+else if (_result?.IsOrganizationEmpty == true) { <section class="empty-state"><span class="empty-icon" aria-hidden="true">A</span><h2>No shared ADRs yet</h2><p>Records become visible to the organization when an author proposes a complete draft.</p><a class="button button-secondary" href="drafts/new">Draft the first decision</a></section> }
+else if (_result?.IsViewEmpty == true) { <section class="placeholder-panel"><h2>@(string.IsNullOrEmpty(_result.Query.Search) ? EmptyTitle : "No matching shared ADRs")</h2><p>@(string.IsNullOrEmpty(_result.Query.Search) ? EmptyMessage : $"No records in this view contain “{_result.Query.Search}”.")</p>@if (!string.IsNullOrEmpty(_result.Query.Search)) { <a class="button button-secondary" href="@BuildUrl(page: 1, clearSearch: true)">Clear search</a> } else if (_statuses.Count > 0) { <a class="button button-secondary" href="records">Clear filters</a> }</section> }
+else if (_result is { IsSuccess: true })
+{
+    <div class="result-summary"><span><strong>@_result.TotalMatchingCount</strong> matching @(_result.TotalMatchingCount == 1 ? "record" : "records")</span><span>Page @_result.Query.Page of @_result.TotalPages</span></div>
+    <section class="record-table" aria-label="@ViewLabel">
+        <div class="record-columns" role="row">
+            @SortHeading("ADR", SharedRecordSort.Identifier)
+            @SortHeading("Title", SharedRecordSort.Title)
+            @SortHeading("Status", SharedRecordSort.Status)
+            @SortHeading("Author", SharedRecordSort.Author)
+            @SortHeading("Lifecycle date", SharedRecordSort.RelevantDate)
+        </div>
+        @foreach (var item in _result.Items)
+        {
+            <a class="record-row" href="@DetailUrl(item.Id)">
+                <span class="record-id">@ShortId(item.Id)</span><strong>@item.Title.Value</strong><span class="role-badge @StatusClass(item.Status)">@item.Status</span><span>@item.AuthorDisplayName</span><span><time datetime="@item.RelevantAtUtc.ToString("O")">@item.RelevantAtUtc.ToLocalTime().ToString("MMM d, yyyy")</time><small>@item.RelevantActorRole @item.RelevantActorDisplayName</small></span>
+            </a>
+        }
+    </section>
+    <nav class="pagination" aria-label="Result pages">
+        @if (_result.HasPreviousPage) { <a class="button button-secondary" href="@BuildUrl(page: _result.Query.Page - 1)">Previous</a> } else { <button class="button button-secondary" disabled>Previous</button> }
+        <span>Page @_result.Query.Page of @_result.TotalPages</span>
+        @if (_result.HasNextPage) { <a class="button button-secondary" href="@BuildUrl(page: _result.Query.Page + 1)">Next</a> } else { <button class="button button-secondary" disabled>Next</button> }
+    </nav>
+}
+
+@code {
+    [Parameter, EditorRequired] public SharedRecordView View { get; set; }
+    [Parameter, EditorRequired] public string ViewLabel { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string EmptyTitle { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string EmptyMessage { get; set; } = string.Empty;
+    [Parameter] public string[]? Status { get; set; }
+    [Parameter] public string? Sort { get; set; }
+    [Parameter] public string? Direction { get; set; }
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public string? Search { get; set; }
+    private static readonly AdrLifecycleStatus[] SharedStatuses = [AdrLifecycleStatus.Proposed, AdrLifecycleStatus.Accepted, AdrLifecycleStatus.Rejected, AdrLifecycleStatus.Superseded];
+    private DiscoveryQueryResult? _result; private HashSet<AdrLifecycleStatus> _statuses = []; private SharedRecordSort? _sort; private SortDirection _direction = SortDirection.Descending; private MemberId? _memberId; private string _searchInput = string.Empty; private IReadOnlyList<SharedRecordItem> _suggestions = []; private bool _suggestionsHaveMore; private bool _suggesting; private CancellationTokenSource? _suggestionCancellation; private bool _parseInvalid; private bool _loading = true;
+    private string BasePath => View switch { SharedRecordView.Current => "", SharedRecordView.Proposed => "proposed", SharedRecordView.Historical => "historical", _ => "records" };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true; _parseInvalid = false; _statuses = []; _searchInput = Search ?? string.Empty; CancelSuggestions();
+        try
+        {
+            if (Status is { Length: > 0 }) foreach (var value in Status) { if (Enum.TryParse<AdrLifecycleStatus>(value, true, out var parsed) && SharedStatuses.Contains(parsed)) _statuses.Add(parsed); else _parseInvalid = true; }
+            _sort = string.IsNullOrWhiteSpace(Sort) ? null : Enum.TryParse<SharedRecordSort>(Sort, true, out var parsedSort) ? parsedSort : null;
+            if (!string.IsNullOrWhiteSpace(Sort) && _sort is null) _parseInvalid = true;
+            _direction = string.IsNullOrWhiteSpace(Direction) ? SortDirection.Descending : Enum.TryParse<SortDirection>(Direction, true, out var parsedDirection) ? parsedDirection : SortDirection.Descending;
+            if (!string.IsNullOrWhiteSpace(Direction) && !Enum.TryParse<SortDirection>(Direction, true, out _)) _parseInvalid = true;
+            if (Page < 1 || (View != SharedRecordView.All && _statuses.Count > 0)) _parseInvalid = true;
+            if (_parseInvalid) return;
+            var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var subjectId = auth.User.FindFirst("sub")?.Value;
+            if (string.IsNullOrWhiteSpace(subjectId)) { _result = DiscoveryQueryResult.Unauthorized(new(Organization.Id, new MemberId("unavailable"), View)); return; }
+            _memberId = new MemberId(subjectId);
+            _result = await Discovery.BrowseAsync(new(Organization.Id, _memberId, View, _statuses, _sort, _direction, Page, _searchInput));
+        }
+        finally { _loading = false; }
+    }
+
+    private RenderFragment SortHeading(string label, SharedRecordSort sort) => builder =>
+    {
+        var active = _sort == sort; var next = active && _direction == SortDirection.Ascending ? SortDirection.Descending : SortDirection.Ascending; var marker = active ? (_direction == SortDirection.Ascending ? " ↑" : " ↓") : string.Empty;
+        builder.OpenElement(0, "a"); builder.AddAttribute(1, "href", BuildUrl(sort, next, 1)); builder.AddAttribute(2, "aria-current", active ? "true" : null); builder.AddContent(3, label + marker); builder.CloseElement();
+    };
+    private async Task SearchInputAsync(ChangeEventArgs args)
+    {
+        _searchInput = args.Value?.ToString() ?? string.Empty; CancelSuggestions(); _suggestions = []; _suggestionsHaveMore = false;
+        var validation = SearchPhraseValidator.Validate(_searchInput); if (!validation.IsValid || validation.Phrase.Length < SearchPhraseValidator.MinimumLength || _memberId is null) return;
+        var cancellation = _suggestionCancellation = new CancellationTokenSource(); _suggesting = true;
+        try { await Task.Delay(300, cancellation.Token); var result = await Discovery.SuggestAsync(new(Organization.Id, _memberId, View, _statuses, Search: validation.Phrase), cancellation.Token); if (!cancellation.IsCancellationRequested && string.Equals(validation.Phrase, _searchInput.Trim(), StringComparison.Ordinal)) { _suggestions = result.Items; _suggestionsHaveMore = result.HasMore; } }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        finally { if (ReferenceEquals(_suggestionCancellation, cancellation)) _suggesting = false; }
+    }
+    private string BuildUrl(SharedRecordSort? sort = null, SortDirection? direction = null, int? page = null, bool clearSearch = false)
+    {
+        var values = new List<string>(); foreach (var status in _statuses.OrderBy(value => value)) values.Add($"status={Uri.EscapeDataString(status.ToString())}");
+        var selectedSort = sort ?? _sort; if (selectedSort is not null) { values.Add($"sort={selectedSort}"); values.Add($"direction={direction ?? _direction}"); }
+        if (!clearSearch && !string.IsNullOrWhiteSpace(_searchInput)) values.Add($"query={Uri.EscapeDataString(_searchInput.Trim())}");
+        var selectedPage = page ?? Page; if (selectedPage > 1) values.Add($"page={selectedPage}"); var path = string.IsNullOrEmpty(BasePath) ? "/" : BasePath; return values.Count == 0 ? path : $"{path}?{string.Join("&", values)}";
+    }
+    private void CancelSuggestions() { _suggestionCancellation?.Cancel(); _suggestionCancellation?.Dispose(); _suggestionCancellation = null; _suggesting = false; }
+    private string DetailUrl(AdrId id) { var relative = Navigation.ToBaseRelativePath(Navigation.Uri); var returnUrl = string.IsNullOrEmpty(relative) ? "/" : $"/{relative}"; return $"proposals/{id.Value:D}?returnUrl={Uri.EscapeDataString(returnUrl)}"; }
+    public void Dispose() => CancelSuggestions();
+    private static string ShortId(AdrId id) => id.Value.ToString("N")[..8].ToUpperInvariant();
+    private static string StatusClass(AdrLifecycleStatus status) => status switch { AdrLifecycleStatus.Accepted => "role-accepted", AdrLifecycleStatus.Rejected => "role-rejected", AdrLifecycleStatus.Superseded => "role-superseded", _ => "role-proposed" };
+}
