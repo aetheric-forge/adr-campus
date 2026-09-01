@@ -1,5 +1,9 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/AdrCampus.Core/AdrCampus.Core.csproj" />
     <Project Path="src/AdrCampus.Web/AdrCampus.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AdrCampus.Core.Tests/AdrCampus.Core.Tests.csproj" />
   </Folder>
 </Solution>

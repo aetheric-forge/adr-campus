@@ -1,6 +1,14 @@
 ﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                <section class="placeholder-panel access-denied" role="alert">
+                    <h1>Maintainer access required</h1>
+                    <p>This area is available only to active ADR Campus maintainers.</p>
+                    <a class="button button-secondary" href="">Return to current decisions</a>
+                </section>
+            </NotAuthorized>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>

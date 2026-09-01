@@ -1,4 +1,6 @@
 @page "/administration"
+@attribute [Authorize(Policy = IdentityPolicies.ActiveMaintainer)]
+@using AdrCampus.Web.Identity
 <PageTitle>Administration</PageTitle>
 <div class="page-header"><div><span class="eyebrow">Maintainer</span><h1>Administration</h1><p>Organization settings, application history, and draft recovery.</p></div></div>
 <div class="card-grid">

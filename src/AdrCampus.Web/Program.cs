@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+ValidateOrganizationDirectoryConfiguration(builder.Configuration);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -51,12 +52,20 @@ builder.Services
         };
     });
 builder.Services.AddAuthorization(options =>
+{
     options.AddPolicy(IdentityPolicies.ActiveMember, policy =>
     {
         policy.RequireAuthenticatedUser();
         policy.AddRequirements(new ActiveMemberRequirement());
-    }));
+    });
+    options.AddPolicy(IdentityPolicies.ActiveMaintainer, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.AddRequirements(new ActiveMaintainerRequirement());
+    });
+});
 builder.Services.AddScoped<IAuthorizationHandler, ActiveMemberAuthorizationHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, ActiveMaintainerAuthorizationHandler>();
 builder.Services.AddHttpClient(MemberRosterService.HttpClientName);
 builder.Services.AddScoped<MemberRosterService>();
 
@@ -109,3 +118,22 @@ static string LocalReturnUrl(string? returnUrl) =>
     !returnUrl.StartsWith("//", StringComparison.Ordinal)
         ? returnUrl
         : "/";
+
+static void ValidateOrganizationDirectoryConfiguration(IConfiguration configuration)
+{
+    var memberGroup = configuration["Organization:MemberGroupId"]?.Trim();
+    var maintainerGroup = configuration["Organization:MaintainerGroupId"]?.Trim();
+    if (string.IsNullOrWhiteSpace(memberGroup))
+    {
+        throw new InvalidOperationException("Configuration value 'Organization:MemberGroupId' is required.");
+    }
+    if (string.IsNullOrWhiteSpace(maintainerGroup))
+    {
+        throw new InvalidOperationException("Configuration value 'Organization:MaintainerGroupId' is required.");
+    }
+    if (string.Equals(memberGroup, maintainerGroup, StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "The member and maintainer groups must be configured as distinct Keycloak groups.");
+    }
+}

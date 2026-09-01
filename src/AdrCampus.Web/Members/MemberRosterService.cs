@@ -15,14 +15,30 @@ public sealed class MemberRosterService(
         string subjectId,
         CancellationToken cancellationToken = default)
     {
+        var membership = await GetMembershipAsync(subjectId, cancellationToken).ConfigureAwait(false);
+        return membership.IsAvailable && membership.IsMember;
+    }
+
+    public async Task<CurrentMembership> GetMembershipAsync(
+        string subjectId,
+        CancellationToken cancellationToken = default)
+    {
         if (string.IsNullOrWhiteSpace(subjectId))
         {
-            return false;
+            return CurrentMembership.NotAMember;
         }
 
         var roster = await GetCurrentAsync(cancellationToken).ConfigureAwait(false);
-        return roster.IsAvailable && roster.Members.Any(member =>
+        if (!roster.IsAvailable)
+        {
+            return CurrentMembership.Unavailable;
+        }
+
+        var member = roster.Members.FirstOrDefault(member =>
             string.Equals(member.SubjectId, subjectId, StringComparison.Ordinal));
+        return member is null
+            ? CurrentMembership.NotAMember
+            : new CurrentMembership(true, true, member.IsMaintainer);
     }
 
     public async Task<MemberRosterResult> GetCurrentAsync(CancellationToken cancellationToken = default)
@@ -58,10 +74,25 @@ public sealed class MemberRosterService(
                 .Where(identity => identity.IsEnabled)
                 .Select(identity => identity.Reference.SubjectId)
                 .ToHashSet(StringComparer.Ordinal);
-            var roster = members.Value!
+            var activeMembers = members.Value!
                 .Where(identity => identity.IsEnabled)
                 .GroupBy(identity => identity.Reference.SubjectId, StringComparer.Ordinal)
                 .Select(group => group.First())
+                .ToArray();
+            var memberIds = activeMembers
+                .Select(identity => identity.Reference.SubjectId)
+                .ToHashSet(StringComparer.Ordinal);
+            var orphanedMaintainerCount = maintainerIds.Count(subjectId => !memberIds.Contains(subjectId));
+            if (orphanedMaintainerCount > 0)
+            {
+                logger.LogError(
+                    "The maintainer group contains {InvalidMaintainerCount} enabled identities that are not active members.",
+                    orphanedMaintainerCount);
+                return MemberRosterResult.Unavailable(
+                    "The organization role configuration is invalid. Every maintainer must also be an active member.");
+            }
+
+            var roster = activeMembers
                 .Select(identity => new MemberRosterItem(
                     identity.Reference.SubjectId,
                     identity.DisplayName ?? "Unnamed member",
@@ -137,6 +168,12 @@ public sealed class MemberRosterService(
 }
 
 public sealed record MemberRosterItem(string SubjectId, string DisplayName, bool IsMaintainer);
+
+public sealed record CurrentMembership(bool IsAvailable, bool IsMember, bool IsMaintainer)
+{
+    public static CurrentMembership Unavailable { get; } = new(false, false, false);
+    public static CurrentMembership NotAMember { get; } = new(true, false, false);
+}
 
 public sealed record MemberRosterResult(
     bool IsAvailable,

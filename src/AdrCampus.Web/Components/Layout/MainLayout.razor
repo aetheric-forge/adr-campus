@@ -1,8 +1,11 @@
 @inherits LayoutComponentBase
 @using System.Security.Claims
+@using AdrCampus.Web.Members
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject MemberRosterService RosterService
 
 <div class="page">
-    <aside class="sidebar"><NavMenu /></aside>
+    <aside class="sidebar"><NavMenu IsMaintainer="_isMaintainer" ViewAsMember="_viewAsMember" /></aside>
     <main>
         <header class="top-row">
             <div class="organization"><span class="organization-label">Organization</span><strong>Aetheric Forge</strong></div>
@@ -10,7 +13,16 @@
                 <Authorized Context="authentication">
                     <div class="account" aria-label="Signed-in account">
                         <span class="avatar" aria-hidden="true">@Initials(authentication.User)</span>
-                        <span><strong>@DisplayName(authentication.User)</strong><small>Member</small></span>
+                        <span class="account-identity">
+                            <strong>@DisplayName(authentication.User)</strong>
+                            <small>@RoleLabel</small>
+                        </span>
+                        @if (_isMaintainer)
+                        {
+                            <button class="account-view-toggle" type="button" @onclick="ToggleMemberView">
+                                @(_viewAsMember ? "Return to maintainer view" : "View as member")
+                            </button>
+                        }
                         <form method="post" action="/account/logout">
                             <AntiforgeryToken />
                             <button class="account-signout" type="submit">Sign out</button>
@@ -24,6 +36,26 @@
 </div>
 
 @code {
+    private bool _isMaintainer;
+    private bool _viewAsMember;
+
+    private string RoleLabel => _isMaintainer
+        ? _viewAsMember ? "Maintainer · Viewing as member" : "Maintainer"
+        : "Member";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var subjectId = authentication.User.FindFirst("sub")?.Value;
+        if (!string.IsNullOrWhiteSpace(subjectId))
+        {
+            var membership = await RosterService.GetMembershipAsync(subjectId);
+            _isMaintainer = membership.IsAvailable && membership.IsMaintainer;
+        }
+    }
+
+    private void ToggleMemberView() => _viewAsMember = !_viewAsMember;
+
     private static string DisplayName(ClaimsPrincipal user) =>
         user.FindFirst("name")?.Value ??
         user.FindFirst("preferred_username")?.Value ??
