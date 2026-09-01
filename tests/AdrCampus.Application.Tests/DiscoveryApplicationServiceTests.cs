@@ -148,6 +148,84 @@ public sealed class DiscoveryApplicationServiceTests
         Assert.Empty(result.Items);
     }
 
+    [Theory]
+    [InlineData("Searchable title")]
+    [InlineData("context phrase")]
+    [InlineData("decision phrase")]
+    [InlineData("consequence phrase")]
+    [InlineData("Alice Architect")]
+    [InlineData("Paula Proposer")]
+    [InlineData("Dana Decider")]
+    [InlineData("acceptance rationale")]
+    public async Task SearchMatchesEverySharedFieldCaseInsensitively(string phrase)
+    {
+        var record = new AdrProposal(new AdrId(new Guid(42, 0, 0, new byte[8])), Organization, new("alice"), new("paula"), new(new("Searchable Title"), "Context Phrase", "Decision Phrase", "Consequence Phrase"), Now, Now.AddMinutes(1), 1)
+            .Decide(DecisionOutcome.Accepted, new MemberId("dana"), "Acceptance Rationale", Now.AddMinutes(2));
+        var names = new Names(new Dictionary<string, string> { ["alice"] = "Alice Architect", ["paula"] = "Paula Proposer", ["dana"] = "Dana Decider" });
+        var result = await new DiscoveryApplicationService(new Repository([record]), new Authority(true), names).BrowseAsync(new(Organization, Member, SharedRecordView.All, Search: phrase.ToUpperInvariant()));
+        Assert.Single(result.Items);
+    }
+
+    [Fact]
+    public async Task SearchMatchesStableIdentifierAndTreatsPunctuationLiterally()
+    {
+        var record = Proposed(7, title: "Use C++ [v2]"); var service = Service([record]);
+        Assert.Single((await service.BrowseAsync(new(Organization, Member, SharedRecordView.All, Search: record.Id.Value.ToString("D")))).Items);
+        Assert.Single((await service.BrowseAsync(new(Organization, Member, SharedRecordView.All, Search: "C++"))).Items);
+        Assert.Empty((await service.BrowseAsync(new(Organization, Member, SharedRecordView.All, Search: "C.*"))).Items);
+    }
+
+    [Fact]
+    public async Task SearchRespectsViewAndStatusFilters()
+    {
+        var proposed = Proposed(1, title: "Shared phrase"); var accepted = Proposed(2, title: "Shared phrase").Decide(DecisionOutcome.Accepted, new("decider"), "", Now.AddMinutes(2));
+        var current = await Service([proposed, accepted]).BrowseAsync(new(Organization, Member, SharedRecordView.Current, Search: "shared"));
+        var filtered = await Service([proposed, accepted]).BrowseAsync(new(Organization, Member, SharedRecordView.All, new HashSet<AdrLifecycleStatus> { AdrLifecycleStatus.Proposed }, Search: "shared"));
+        Assert.Single(current.Items); Assert.Equal(AdrLifecycleStatus.Accepted, current.Items[0].Status); Assert.Single(filtered.Items); Assert.Equal(AdrLifecycleStatus.Proposed, filtered.Items[0].Status);
+    }
+
+    [Fact]
+    public async Task DefaultSearchRanksExactIdentifierThenTitleThenOtherContent()
+    {
+        var exact = Proposed(1, 0, "Unrelated"); var title = Proposed(2, 5, exact.Id.Value.ToString("D") + " title"); var content = new AdrProposal(new AdrId(new Guid(3, 0, 0, new byte[8])), Organization, new("author"), new("proposer"), new(new("Other"), exact.Id.Value.ToString("D"), "Decision", "Consequences"), Now, Now.AddMinutes(10), 1);
+        var result = await Service([content, title, exact]).BrowseAsync(new(Organization, Member, SharedRecordView.All, Search: exact.Id.Value.ToString("D")));
+        Assert.Equal(new[] { exact.Id, title.Id, content.Id }, result.Items.Select(item => item.Id));
+    }
+
+    [Fact]
+    public async Task SelectedColumnSortOverridesSearchRelevance()
+    {
+        var titleMatch = Proposed(1, title: "Shared in title"); var contentMatch = new AdrProposal(new AdrId(new Guid(2, 0, 0, new byte[8])), Organization, new("author"), new("proposer"), new(new("Alpha"), "shared in context", "Decision", "Consequences"), Now, Now, 1);
+        var result = await Service([titleMatch, contentMatch]).BrowseAsync(new(Organization, Member, SharedRecordView.All, Sort: SharedRecordSort.Title, Direction: SortDirection.Ascending, Search: "shared"));
+        Assert.Equal(contentMatch.Id, result.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task InvalidSearchDoesNotQueryPersistence()
+    {
+        var repository = new Repository([]); var service = new DiscoveryApplicationService(repository, new Authority(true), new Names());
+        var result = await service.BrowseAsync(new(Organization, Member, SharedRecordView.All, Search: "ab"));
+        Assert.Equal(DiscoveryQueryStatus.Invalid, result.Status); Assert.Contains(result.Errors, error => error.Code == SearchValidationCode.TooShort); Assert.Equal(0, repository.Calls);
+    }
+
+    [Fact]
+    public async Task SuggestionsAreRankedBoundedAndReportAdditionalMatches()
+    {
+        var records = Enumerable.Range(1, 10).Select(id => Proposed(id, id, $"Shared title {id}")).ToArray();
+        var result = await Service(records).SuggestAsync(new(Organization, Member, SharedRecordView.All, Search: "shared"));
+        Assert.Equal(8, result.Items.Count); Assert.True(result.HasMore); Assert.All(result.Items, item => Assert.Contains("Shared", item.Title.Value));
+    }
+
+    [Theory]
+    [InlineData("2026-09-02")]
+    [InlineData("Sep 2, 2026")]
+    [InlineData("September 2, 2026")]
+    public async Task SearchMatchesRelevantLifecycleDate(string phrase)
+    {
+        var result = await Service([Proposed(1)]).BrowseAsync(new(Organization, Member, SharedRecordView.All, Search: phrase));
+        Assert.Single(result.Items);
+    }
+
     private static DiscoveryApplicationService Service(IReadOnlyList<AdrProposal> records) => new(new Repository(records), new Authority(true), new Names());
     private static AdrProposal Proposed(int id, int proposedMinute = 0, string title = "Decision title", string author = "author") => new(new AdrId(new Guid(id, 0, 0, new byte[8])), Organization, new(author), new("proposer"), new(new(title), "Context", "Decision", "Consequences"), Now, Now.AddMinutes(proposedMinute), 1);
     private static AdrProposal Decided(int id, DecisionOutcome outcome, int decidedMinute = 2) => Proposed(id).Decide(outcome, new MemberId("decider"), outcome == DecisionOutcome.Accepted ? "" : "Reason", Now.AddMinutes(decidedMinute));

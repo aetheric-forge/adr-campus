@@ -3,5 +3,5 @@
 @using AdrCampus.Web.Components.Discovery
 <PageTitle>All records</PageTitle>
 <div class="page-header"><div><span class="eyebrow">Decision record</span><h1>All shared records</h1><p>Browse proposed, accepted, rejected, and superseded ADRs.</p></div></div>
-<SharedRecordList View="SharedRecordView.All" ViewLabel="All shared records" EmptyTitle="No matching shared records" EmptyMessage="No shared ADRs match the selected status filters." Status="@Status" Sort="@Sort" Direction="@Direction" Page="@(Page ?? 1)" />
-@code { [SupplyParameterFromQuery(Name = "status")] public string[]? Status { get; set; } [SupplyParameterFromQuery] public string? Sort { get; set; } [SupplyParameterFromQuery] public string? Direction { get; set; } [SupplyParameterFromQuery] public int? Page { get; set; } }
+<SharedRecordList View="SharedRecordView.All" ViewLabel="All shared records" EmptyTitle="No matching shared records" EmptyMessage="No shared ADRs match the selected status filters." Status="@Status" Sort="@Sort" Direction="@Direction" Page="@(Page ?? 1)" Search="@Query" />
+@code { [SupplyParameterFromQuery(Name = "status")] public string[]? Status { get; set; } [SupplyParameterFromQuery] public string? Sort { get; set; } [SupplyParameterFromQuery] public string? Direction { get; set; } [SupplyParameterFromQuery] public int? Page { get; set; } [SupplyParameterFromQuery(Name = "query")] public string? Query { get; set; } }

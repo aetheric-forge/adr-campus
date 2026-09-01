@@ -26,6 +26,8 @@ public sealed record SharedRecordItem(
     AdrLifecycleStatus Status,
     MemberId AuthorId,
     string AuthorDisplayName,
+    MemberId ProposerId,
+    string ProposerDisplayName,
     MemberId RelevantActorId,
     string RelevantActorDisplayName,
     string RelevantActorRole,

@@ -3,5 +3,5 @@
 @using AdrCampus.Web.Components.Discovery
 <PageTitle>Current decisions</PageTitle>
 <div class="page-header"><div><span class="eyebrow">Decision record</span><h1>Current decisions</h1><p>Accepted architectural decisions currently in effect.</p></div><a class="button button-primary" href="drafts/new">New ADR</a></div>
-<SharedRecordList View="SharedRecordView.Current" ViewLabel="Current decisions" EmptyTitle="No accepted decisions" EmptyMessage="Shared ADRs exist, but none are currently accepted and in effect." Sort="@Sort" Direction="@Direction" Page="@(Page ?? 1)" />
-@code { [SupplyParameterFromQuery] public string? Sort { get; set; } [SupplyParameterFromQuery] public string? Direction { get; set; } [SupplyParameterFromQuery] public int? Page { get; set; } }
+<SharedRecordList View="SharedRecordView.Current" ViewLabel="Current decisions" EmptyTitle="No accepted decisions" EmptyMessage="Shared ADRs exist, but none are currently accepted and in effect." Sort="@Sort" Direction="@Direction" Page="@(Page ?? 1)" Search="@Query" />
+@code { [SupplyParameterFromQuery] public string? Sort { get; set; } [SupplyParameterFromQuery] public string? Direction { get; set; } [SupplyParameterFromQuery] public int? Page { get; set; } [SupplyParameterFromQuery(Name = "query")] public string? Query { get; set; } }

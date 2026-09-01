@@ -98,7 +98,10 @@ Search is case-insensitive and matches shared ADRs against:
 - author display name;
 - proposer display name;
 - decider display name; and
-- acceptance notes or rejection reasons.
+- acceptance notes or rejection reasons; and
+- relevant lifecycle date.
+
+The relevant lifecycle date uses the same event defined for browsing and sorting: proposal for `Proposed`, decision for `Accepted` or `Rejected`, and completed supersession for `Superseded`. Date search performs literal phrase matching against the ISO `YYYY-MM-DD` form and the displayed abbreviated or full English month forms, such as `Sep 2, 2026` and `September 2, 2026`. Partial phrases such as a four-digit year may match those representations. ADR Campus does not interpret the phrase as a general date expression or date range.
 
 For the first release, the normalized query is treated as one plain-text phrase. An ADR matches when that phrase occurs in any searchable field. Search does not interpret operators, wildcards, regular expressions, or query syntax.
 
@@ -275,6 +278,12 @@ Given an active member and a valid non-empty query,
 when a shared ADR does not contain the normalized phrase in any searchable field or is outside the selected view and filters,
 then ADR Campus excludes it from the results.
 
+### Search by relevant lifecycle date
+
+Given an active member, a selected view and filters, and a shared ADR with a relevant lifecycle date,
+when the member searches using a literal phrase contained in its ISO date, displayed abbreviated month date, or displayed full month date,
+then ADR Campus includes that ADR and applies the same view, filter, ranking, sorting, and pagination rules as any other searchable field.
+
 ### Treat search as plain text
 
 Given a valid query containing punctuation or characters commonly used as search operators,
@@ -406,7 +415,7 @@ The architecture must support:
 
 - authorization-aware reads that cannot leak private or organization-scoped data;
 - a shared-record projection that excludes drafts and distinguishes current from historical decisions;
-- case-insensitive plain-text search across the defined ADR and attribution fields;
+- case-insensitive plain-text search across the defined ADR, attribution, and relevant lifecycle-date fields;
 - bounded, delayed omnibar suggestions that cannot be replaced by obsolete responses;
 - composable view, status-filter, and query criteria;
 - server-side pagination and sortable result columns with deterministic ordering;

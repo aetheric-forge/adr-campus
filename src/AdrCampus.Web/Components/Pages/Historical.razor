@@ -3,5 +3,5 @@
 @using AdrCampus.Web.Components.Discovery
 <PageTitle>Historical decisions</PageTitle>
 <div class="page-header"><div><span class="eyebrow">Decision record</span><h1>Historical decisions</h1><p>Rejected proposals and decisions replaced by later ADRs.</p></div></div>
-<SharedRecordList View="SharedRecordView.Historical" ViewLabel="Historical decisions" EmptyTitle="No historical records" EmptyMessage="Shared ADRs exist, but none have been rejected or superseded." Sort="@Sort" Direction="@Direction" Page="@(Page ?? 1)" />
-@code { [SupplyParameterFromQuery] public string? Sort { get; set; } [SupplyParameterFromQuery] public string? Direction { get; set; } [SupplyParameterFromQuery] public int? Page { get; set; } }
+<SharedRecordList View="SharedRecordView.Historical" ViewLabel="Historical decisions" EmptyTitle="No historical records" EmptyMessage="Shared ADRs exist, but none have been rejected or superseded." Sort="@Sort" Direction="@Direction" Page="@(Page ?? 1)" Search="@Query" />
+@code { [SupplyParameterFromQuery] public string? Sort { get; set; } [SupplyParameterFromQuery] public string? Direction { get; set; } [SupplyParameterFromQuery] public int? Page { get; set; } [SupplyParameterFromQuery(Name = "query")] public string? Query { get; set; } }

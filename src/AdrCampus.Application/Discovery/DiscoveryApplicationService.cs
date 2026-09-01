@@ -11,6 +11,9 @@ public sealed class DiscoveryApplicationService(ISharedRecordRepository records,
     public async Task<DiscoveryQueryResult> BrowseAsync(DiscoveryQuery query, CancellationToken cancellationToken = default)
     {
         if (!IsValid(query)) return DiscoveryQueryResult.Invalid(query);
+        var search = SearchPhraseValidator.Validate(query.Search);
+        if (!search.IsValid) return DiscoveryQueryResult.Invalid(query with { Search = search.Phrase }, search.Errors);
+        query = query with { Search = search.Phrase };
         if (!await members.IsActiveMemberAsync(query.OrganizationId, query.MemberId, cancellationToken).ConfigureAwait(false)) return DiscoveryQueryResult.Unauthorized(query);
         try
         {
@@ -18,18 +21,27 @@ public sealed class DiscoveryApplicationService(ISharedRecordRepository records,
             var matching = shared.Where(record => Includes(query.View, record.Status));
             if (query.Statuses is { Count: > 0 }) matching = matching.Where(record => query.Statuses.Contains(record.Status));
             var matched = matching.ToArray();
-            var identities = matched.SelectMany(record => record.FinalDecision is null ? new[] { record.AuthorId, record.ProposerId } : new[] { record.AuthorId, record.FinalDecision.DeciderId }).Distinct().ToArray();
+            var identities = matched.SelectMany(record => record.FinalDecision is null ? new[] { record.AuthorId, record.ProposerId } : new[] { record.AuthorId, record.ProposerId, record.FinalDecision.DeciderId }).Distinct().ToArray();
             var resolved = identities.Length == 0 ? new MemberNameResolution(true, new Dictionary<string, string>()) : await names.ResolveAsync(query.OrganizationId, identities, cancellationToken).ConfigureAwait(false);
             if (!resolved.IsAvailable) return DiscoveryQueryResult.Unavailable(query);
-            var items = matched.Select(record => ToItem(record, resolved)).ToArray();
-            var ordered = Order(items, query.Sort, query.Direction);
-            var totalPages = Math.Max(1, (int)Math.Ceiling(items.Length / (double)PageSize));
+            var candidates = matched.Select(record => new SearchCandidate(record, ToItem(record, resolved))).ToArray();
+            if (search.Phrase.Length > 0) candidates = candidates.Where(candidate => Matches(candidate, search.Phrase)).ToArray();
+            var ordered = query.Sort is null && search.Phrase.Length > 0
+                ? candidates.OrderBy(candidate => Rank(candidate, search.Phrase)).ThenByDescending(candidate => candidate.Item.RelevantAtUtc).ThenBy(candidate => candidate.Item.Id.Value).Select(candidate => candidate.Item)
+                : Order(candidates.Select(candidate => candidate.Item).ToArray(), query.Sort, query.Direction);
+            var totalPages = Math.Max(1, (int)Math.Ceiling(candidates.Length / (double)PageSize));
             var page = Math.Min(query.Page, totalPages);
             var pageItems = ordered.Skip((page - 1) * PageSize).Take(PageSize).ToArray();
-            return DiscoveryQueryResult.Success(query with { Page = page }, pageItems, shared.Length, items.Length, totalPages);
+            return DiscoveryQueryResult.Success(query with { Page = page }, pageItems, shared.Length, candidates.Length, totalPages);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception) { return DiscoveryQueryResult.Unavailable(query); }
+    }
+
+    public async Task<SuggestionQueryResult> SuggestAsync(DiscoveryQuery query, CancellationToken cancellationToken = default)
+    {
+        var result = await BrowseAsync(query with { Sort = null, Direction = SortDirection.Descending, Page = 1 }, cancellationToken).ConfigureAwait(false);
+        return new(result.Status, result.Items.Take(8).ToArray(), result.TotalMatchingCount > 8, result.Errors);
     }
 
     private static bool IsValid(DiscoveryQuery query) => Enum.IsDefined(query.View) && query.Page > 0 && (query.Sort is null || Enum.IsDefined(query.Sort.Value)) && Enum.IsDefined(query.Direction) && (query.Statuses is null || query.Statuses.All(IsSharedStatus)) && (query.View == SharedRecordView.All || query.Statuses is null or { Count: 0 });
@@ -40,8 +52,28 @@ public sealed class DiscoveryApplicationService(ISharedRecordRepository records,
     {
         var decision = record.FinalDecision;
         return decision is null
-            ? new(record.Id, record.Content.Title, record.Status, record.AuthorId, names.For(record.AuthorId), record.ProposerId, names.For(record.ProposerId), "Proposer", record.ProposedAtUtc)
-            : new(record.Id, record.Content.Title, record.Status, record.AuthorId, names.For(record.AuthorId), decision.DeciderId, names.For(decision.DeciderId), "Decider", decision.DecidedAtUtc);
+            ? new(record.Id, record.Content.Title, record.Status, record.AuthorId, names.For(record.AuthorId), record.ProposerId, names.For(record.ProposerId), record.ProposerId, names.For(record.ProposerId), "Proposer", record.ProposedAtUtc)
+            : new(record.Id, record.Content.Title, record.Status, record.AuthorId, names.For(record.AuthorId), record.ProposerId, names.For(record.ProposerId), decision.DeciderId, names.For(decision.DeciderId), "Decider", decision.DecidedAtUtc);
+    }
+
+    private static bool Matches(SearchCandidate candidate, string phrase)
+    {
+        var record = candidate.Record; var item = candidate.Item;
+        return Contains(record.Id.Value.ToString("D"), phrase) || Contains(record.Id.Value.ToString("N"), phrase) || Contains(record.Content.Title.Value, phrase) || Contains(record.Content.Context, phrase) || Contains(record.Content.Decision, phrase) || Contains(record.Content.Consequences, phrase) || Contains(item.AuthorDisplayName, phrase) || Contains(item.ProposerDisplayName, phrase) || Contains(item.RelevantActorDisplayName, phrase) || Contains(record.FinalDecision?.Note, phrase) || DateMatches(item.RelevantAtUtc, phrase);
+    }
+
+    private static int Rank(SearchCandidate candidate, string phrase)
+    {
+        var id = candidate.Record.Id.Value;
+        if (string.Equals(id.ToString("D"), phrase, StringComparison.OrdinalIgnoreCase) || string.Equals(id.ToString("N"), phrase, StringComparison.OrdinalIgnoreCase)) return 0;
+        return Contains(candidate.Record.Content.Title.Value, phrase) ? 1 : 2;
+    }
+
+    private static bool Contains(string? value, string phrase) => value?.Contains(phrase, StringComparison.OrdinalIgnoreCase) == true;
+    private static bool DateMatches(DateTimeOffset value, string phrase)
+    {
+        var local = value.ToLocalTime();
+        return new[] { value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), local.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), local.ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture), local.ToString("MMMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture) }.Any(formatted => Contains(formatted, phrase));
     }
 
     private static IOrderedEnumerable<SharedRecordItem> Order(IReadOnlyCollection<SharedRecordItem> items, SharedRecordSort? sort, SortDirection direction)
@@ -58,19 +90,22 @@ public sealed class DiscoveryApplicationService(ISharedRecordRepository records,
         };
         return sort == SharedRecordSort.Identifier ? ordered : ordered.ThenBy(item => item.Id.Value);
     }
+
+    private sealed record SearchCandidate(AdrProposal Record, SharedRecordItem Item);
 }
 
-public sealed record DiscoveryQuery(OrganizationId OrganizationId, MemberId MemberId, SharedRecordView View, IReadOnlySet<AdrLifecycleStatus>? Statuses = null, SharedRecordSort? Sort = null, SortDirection Direction = SortDirection.Descending, int Page = 1);
+public sealed record DiscoveryQuery(OrganizationId OrganizationId, MemberId MemberId, SharedRecordView View, IReadOnlySet<AdrLifecycleStatus>? Statuses = null, SharedRecordSort? Sort = null, SortDirection Direction = SortDirection.Descending, int Page = 1, string? Search = null);
 public enum DiscoveryQueryStatus { Success, Unauthorized, Invalid, Unavailable }
-public sealed record DiscoveryQueryResult(DiscoveryQueryStatus Status, DiscoveryQuery Query, IReadOnlyList<SharedRecordItem> Items, int TotalSharedCount, int TotalMatchingCount, int TotalPages)
+public sealed record DiscoveryQueryResult(DiscoveryQueryStatus Status, DiscoveryQuery Query, IReadOnlyList<SharedRecordItem> Items, int TotalSharedCount, int TotalMatchingCount, int TotalPages, IReadOnlyList<SearchValidationError> Errors)
 {
     public bool IsSuccess => Status == DiscoveryQueryStatus.Success;
     public bool IsOrganizationEmpty => IsSuccess && TotalSharedCount == 0;
     public bool IsViewEmpty => IsSuccess && TotalSharedCount > 0 && TotalMatchingCount == 0;
     public bool HasPreviousPage => IsSuccess && Query.Page > 1;
     public bool HasNextPage => IsSuccess && Query.Page < TotalPages;
-    public static DiscoveryQueryResult Success(DiscoveryQuery query, IReadOnlyList<SharedRecordItem> items, int totalSharedCount, int totalMatchingCount, int totalPages) => new(DiscoveryQueryStatus.Success, query, items, totalSharedCount, totalMatchingCount, totalPages);
-    public static DiscoveryQueryResult Unauthorized(DiscoveryQuery query) => new(DiscoveryQueryStatus.Unauthorized, query, [], 0, 0, 0);
-    public static DiscoveryQueryResult Invalid(DiscoveryQuery query) => new(DiscoveryQueryStatus.Invalid, query, [], 0, 0, 0);
-    public static DiscoveryQueryResult Unavailable(DiscoveryQuery query) => new(DiscoveryQueryStatus.Unavailable, query, [], 0, 0, 0);
+    public static DiscoveryQueryResult Success(DiscoveryQuery query, IReadOnlyList<SharedRecordItem> items, int totalSharedCount, int totalMatchingCount, int totalPages) => new(DiscoveryQueryStatus.Success, query, items, totalSharedCount, totalMatchingCount, totalPages, []);
+    public static DiscoveryQueryResult Unauthorized(DiscoveryQuery query) => new(DiscoveryQueryStatus.Unauthorized, query, [], 0, 0, 0, []);
+    public static DiscoveryQueryResult Invalid(DiscoveryQuery query, IReadOnlyList<SearchValidationError>? errors = null) => new(DiscoveryQueryStatus.Invalid, query, [], 0, 0, 0, errors ?? []);
+    public static DiscoveryQueryResult Unavailable(DiscoveryQuery query) => new(DiscoveryQueryStatus.Unavailable, query, [], 0, 0, 0, []);
 }
+public sealed record SuggestionQueryResult(DiscoveryQueryStatus Status, IReadOnlyList<SharedRecordItem> Items, bool HasMore, IReadOnlyList<SearchValidationError> Errors);
