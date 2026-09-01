@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AdrCampus.Core.Domain;
+using AdrCampus.Core.Discovery;
 using AdrCampus.Core.Drafts;
 using AdrCampus.Core.Proposals;
 using AethericForge.Runtime.Abstractions.Interfaces.Staging.Primitives;
@@ -8,7 +9,7 @@ using AethericForge.Runtime.Models.Staging;
 
 namespace AdrCampus.Providers.Drafts.Workbench;
 
-public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftRepository, IProposalRepository
+public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftRepository, IProposalRepository, ISharedRecordRepository
 {
     private const string CatalogKey = "adr-campus/drafts/catalog-v1";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -121,6 +122,15 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
         return catalog.Proposals.Where(p => p.OrganizationId == organizationId.Value && p.FinalDecision?.Outcome == outcome)
             .OrderByDescending(p => p.FinalDecision!.DecidedAtUtc).ThenBy(p => p.Id)
             .Select(p => { var record = ToDomain(p); return new DecidedSummary(record.Id, record.Content.Title, record.AuthorId, record.FinalDecision!); }).ToArray();
+    }
+
+    public async Task<IReadOnlyList<AdrProposal>> ListSharedAsync(OrganizationId organizationId, CancellationToken cancellationToken = default)
+    {
+        var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        return catalog.Proposals
+            .Where(record => record.OrganizationId == organizationId.Value)
+            .Select(ToDomain)
+            .ToArray();
     }
 
     private async Task<DraftWriteResult> WriteAsync(OperationId operationId, string kind, AdrDraft draft, long? expectedVersion, Func<Catalog, DraftWriteResult> apply, CancellationToken cancellationToken)

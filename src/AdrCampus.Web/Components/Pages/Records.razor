@@ -1,5 +1,6 @@
 @page "/records"
+@using AdrCampus.Core.Discovery
+@using AdrCampus.Web.Components.Discovery
 <PageTitle>All records</PageTitle>
 <div class="page-header"><div><span class="eyebrow">Decision record</span><h1>All shared records</h1><p>Browse proposed, accepted, rejected, and superseded ADRs.</p></div></div>
-<div class="toolbar" aria-label="Record filters"><input class="search-input" type="search" placeholder="Search ADRs" aria-label="Search ADRs" disabled /><button class="button button-secondary" disabled>Filter by status</button></div>
-<section class="placeholder-panel"><h2>No shared ADRs</h2><p>Records become visible here when their authors propose them.</p></section>
+<SharedRecordList View="SharedRecordView.All" ViewLabel="All shared records" EmptyTitle="No matching shared records" EmptyMessage="No shared ADRs match this view." />
