@@ -31,7 +31,7 @@
                 </Authorized>
             </AuthorizeView>
         </header>
-        <article class="content">@Body</article>
+        <CascadingValue Value="_viewAsMember" Name="ViewAsMember"><article class="content">@Body</article></CascadingValue>
     </main>
 </div>
 

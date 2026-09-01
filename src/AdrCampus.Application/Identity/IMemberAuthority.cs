@@ -8,4 +8,8 @@ public interface IMemberAuthority
         OrganizationId organizationId,
         MemberId memberId,
         CancellationToken cancellationToken = default);
+    Task<bool> IsActiveMaintainerAsync(
+        OrganizationId organizationId,
+        MemberId memberId,
+        CancellationToken cancellationToken = default) => Task.FromResult(false);
 }

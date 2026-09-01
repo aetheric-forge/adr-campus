@@ -86,8 +86,41 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
     public async Task<IReadOnlyList<ProposalSummary>> ListAsync(OrganizationId organizationId, CancellationToken cancellationToken = default)
     {
         var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
-        return catalog.Proposals.Where(p => p.OrganizationId == organizationId.Value).OrderByDescending(p => p.ProposedAtUtc).ThenBy(p => p.Id)
+        return catalog.Proposals.Where(p => p.OrganizationId == organizationId.Value && p.FinalDecision is null).OrderByDescending(p => p.ProposedAtUtc).ThenBy(p => p.Id)
             .Select(p => new ProposalSummary(new AdrId(p.Id), new DraftTitle(p.Title), new MemberId(p.AuthorId), new MemberId(p.ProposerId), p.ProposedAtUtc)).ToArray();
+    }
+
+    public async Task<DecisionWriteResult> DecideAsync(OrganizationId organizationId, AdrId proposalId, DateTimeOffset expectedProposedAtUtc, MemberId deciderId, DecisionOutcome outcome, string note, OperationId operationId, DateTimeOffset decidedAtUtc, CancellationToken cancellationToken = default)
+    {
+        await using var handle = await staging.AcquireLockAsync(Reference, TimeSpan.FromMinutes(1), cancellationToken).ConfigureAwait(false);
+        if (!handle.IsAcquired) throw new InvalidOperationException("The ADR catalog is busy. Retry the operation.");
+        var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        var prior = catalog.DecisionOperations.FirstOrDefault(o => o.Id == operationId.Value);
+        if (prior is not null)
+        {
+            var same = prior.OrganizationId == organizationId.Value && prior.ProposalId == proposalId.Value && prior.ExpectedProposedAtUtc == expectedProposedAtUtc && prior.DeciderId == deciderId.Value && prior.Outcome == outcome && prior.Note == note;
+            return same ? new(DecisionWriteStatus.AlreadyApplied, ToDomain(prior.Record), []) : new(DecisionWriteStatus.OperationMismatch, null, []);
+        }
+        var validation = DecisionNoteValidator.Validate(outcome, note);
+        if (!validation.IsValid) return new(DecisionWriteStatus.Invalid, null, validation.Errors);
+        var index = catalog.Proposals.FindIndex(p => p.OrganizationId == organizationId.Value && p.Id == proposalId.Value);
+        if (index < 0) return new(DecisionWriteStatus.UnauthorizedOrNotFound, null, []);
+        var current = ToDomain(catalog.Proposals[index]);
+        if (current.ProposedAtUtc != expectedProposedAtUtc || current.FinalDecision is not null) return new(DecisionWriteStatus.Conflict, current, []);
+        var decided = current.Decide(outcome, deciderId, validation.Note!, decidedAtUtc);
+        var record = FromDomain(decided);
+        catalog.Proposals[index] = record;
+        catalog.DecisionOperations.Add(new(operationId.Value, organizationId.Value, proposalId.Value, expectedProposedAtUtc, deciderId.Value, outcome, note, record));
+        await SaveAsync(catalog, cancellationToken).ConfigureAwait(false);
+        return new(DecisionWriteStatus.Decided, decided, []);
+    }
+
+    public async Task<IReadOnlyList<DecidedSummary>> ListDecidedAsync(OrganizationId organizationId, DecisionOutcome outcome, CancellationToken cancellationToken = default)
+    {
+        var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        return catalog.Proposals.Where(p => p.OrganizationId == organizationId.Value && p.FinalDecision?.Outcome == outcome)
+            .OrderByDescending(p => p.FinalDecision!.DecidedAtUtc).ThenBy(p => p.Id)
+            .Select(p => { var record = ToDomain(p); return new DecidedSummary(record.Id, record.Content.Title, record.AuthorId, record.FinalDecision!); }).ToArray();
     }
 
     private async Task<DraftWriteResult> WriteAsync(OperationId operationId, string kind, AdrDraft draft, long? expectedVersion, Func<Catalog, DraftWriteResult> apply, CancellationToken cancellationToken)
@@ -118,11 +151,13 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
 
     private static DraftRecord FromDomain(AdrDraft d) => new(d.Id.Value, d.OrganizationId.Value, d.AuthorId.Value, d.Content.Title.Value, d.Content.Context, d.Content.Decision, d.Content.Consequences, d.CreatedAtUtc, d.ModifiedAtUtc, d.Version);
     private static AdrDraft ToDomain(DraftRecord d) => AdrDraft.Restore(new AdrId(d.Id), new OrganizationId(d.OrganizationId), new MemberId(d.AuthorId), new DraftContent(d.Title, d.Context, d.Decision, d.Consequences), d.CreatedAtUtc, d.ModifiedAtUtc, d.Version);
-    private static ProposalRecord FromDomain(AdrProposal p) => new(p.Id.Value, p.OrganizationId.Value, p.AuthorId.Value, p.ProposerId.Value, p.Content.Title.Value, p.Content.Context, p.Content.Decision, p.Content.Consequences, p.CreatedAtUtc, p.ProposedAtUtc, p.SourceDraftVersion);
-    private static AdrProposal ToDomain(ProposalRecord p) => new(new AdrId(p.Id), new OrganizationId(p.OrganizationId), new MemberId(p.AuthorId), new MemberId(p.ProposerId), new ProposalContent(new DraftTitle(p.Title), p.Context, p.Decision, p.Consequences), p.CreatedAtUtc, p.ProposedAtUtc, p.SourceDraftVersion);
-    public sealed class Catalog { public List<DraftRecord> Drafts { get; set; } = []; public List<OperationRecord> Operations { get; set; } = []; public List<ProposalRecord> Proposals { get; set; } = []; public List<ProposalOperationRecord> ProposalOperations { get; set; } = []; }
+    private static ProposalRecord FromDomain(AdrProposal p) => new(p.Id.Value, p.OrganizationId.Value, p.AuthorId.Value, p.ProposerId.Value, p.Content.Title.Value, p.Content.Context, p.Content.Decision, p.Content.Consequences, p.CreatedAtUtc, p.ProposedAtUtc, p.SourceDraftVersion, p.FinalDecision is null ? null : new(p.FinalDecision.Outcome, p.FinalDecision.DeciderId.Value, p.FinalDecision.DecidedAtUtc, p.FinalDecision.Note));
+    private static AdrProposal ToDomain(ProposalRecord p) => new(new AdrId(p.Id), new OrganizationId(p.OrganizationId), new MemberId(p.AuthorId), new MemberId(p.ProposerId), new ProposalContent(new DraftTitle(p.Title), p.Context, p.Decision, p.Consequences), p.CreatedAtUtc, p.ProposedAtUtc, p.SourceDraftVersion, p.FinalDecision is null ? null : new(p.FinalDecision.Outcome, new MemberId(p.FinalDecision.DeciderId), p.FinalDecision.DecidedAtUtc, p.FinalDecision.Note));
+    public sealed class Catalog { public List<DraftRecord> Drafts { get; set; } = []; public List<OperationRecord> Operations { get; set; } = []; public List<ProposalRecord> Proposals { get; set; } = []; public List<ProposalOperationRecord> ProposalOperations { get; set; } = []; public List<DecisionOperationRecord> DecisionOperations { get; set; } = []; }
     public sealed record DraftRecord(Guid Id, string OrganizationId, string AuthorId, string Title, string Context, string Decision, string Consequences, DateTimeOffset CreatedAtUtc, DateTimeOffset ModifiedAtUtc, long Version);
     public sealed record OperationRecord(Guid Id, string Kind, DraftRecord Draft, long? ExpectedVersion);
-    public sealed record ProposalRecord(Guid Id, string OrganizationId, string AuthorId, string ProposerId, string Title, string Context, string Decision, string Consequences, DateTimeOffset CreatedAtUtc, DateTimeOffset ProposedAtUtc, long SourceDraftVersion);
+    public sealed record ProposalRecord(Guid Id, string OrganizationId, string AuthorId, string ProposerId, string Title, string Context, string Decision, string Consequences, DateTimeOffset CreatedAtUtc, DateTimeOffset ProposedAtUtc, long SourceDraftVersion, DecisionRecord? FinalDecision = null);
+    public sealed record DecisionRecord(DecisionOutcome Outcome, string DeciderId, DateTimeOffset DecidedAtUtc, string Note);
     public sealed record ProposalOperationRecord(Guid Id, string OrganizationId, string AuthorId, Guid DraftId, long ExpectedVersion, ProposalRecord Proposal);
+    public sealed record DecisionOperationRecord(Guid Id, string OrganizationId, Guid ProposalId, DateTimeOffset ExpectedProposedAtUtc, string DeciderId, DecisionOutcome Outcome, string Note, ProposalRecord Record);
 }

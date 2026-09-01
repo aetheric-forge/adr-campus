@@ -52,6 +52,8 @@ h1:focus { outline: none; }
 .confirmation-actions { margin-top: 20px; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .action-guidance { color: var(--muted); font-size: .92rem; }
 .role-proposed { border-color: #d9bd72; background: #fff8df; color: #654d16; }
+.role-accepted { border-color: #9fc4ac; background: #edf7f0; color: #245b3c; }
+.role-rejected { border-color: #d7aaa4; background: #fff2f0; color: #812d25; }
 .form-actions { margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px; }
 .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .feature-card { min-height: 190px; padding: 26px; color: inherit; text-decoration: none; }

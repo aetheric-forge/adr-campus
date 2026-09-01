@@ -80,6 +80,33 @@ public sealed class WorkbenchDraftRepositoryTests
         var operation = OperationId.New(); await repository.ProposeAsync(Organization, Author, draft.Id, 1, operation, Now); Assert.Equal(ProposalWriteStatus.AlreadyApplied, (await new WorkbenchDraftRepository(staging).ProposeAsync(Organization, Author, draft.Id, 1, operation, Now.AddHours(1))).Status);
     }
 
+    [Fact]
+    public async Task InvalidDecisionPreservesProposal()
+    {
+        var repository = new WorkbenchDraftRepository(new InMemoryStagingProvider("workbench")); var proposal = await Proposed(repository);
+        var result = await repository.DecideAsync(Organization, proposal.Id, proposal.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Rejected, " ", OperationId.New(), Now.AddMinutes(2));
+        Assert.Equal(DecisionWriteStatus.Invalid, result.Status); Assert.Null((await repository.GetAsync(Organization, proposal.Id))!.FinalDecision); Assert.Single(await repository.ListAsync(Organization));
+    }
+
+    [Fact]
+    public async Task FirstDecisionWinsAndOpposingDecisionConflicts()
+    {
+        var repository = new WorkbenchDraftRepository(new InMemoryStagingProvider("workbench")); var proposal = await Proposed(repository);
+        var accepted = await repository.DecideAsync(Organization, proposal.Id, proposal.ProposedAtUtc, new MemberId("maintainer-1"), DecisionOutcome.Accepted, "", OperationId.New(), Now.AddMinutes(2));
+        var rejected = await repository.DecideAsync(Organization, proposal.Id, proposal.ProposedAtUtc, new MemberId("maintainer-2"), DecisionOutcome.Rejected, "Too late", OperationId.New(), Now.AddMinutes(3));
+        Assert.Equal(DecisionWriteStatus.Decided, accepted.Status); Assert.Equal(DecisionWriteStatus.Conflict, rejected.Status); Assert.Equal(DecisionOutcome.Accepted, (await repository.GetAsync(Organization, proposal.Id))!.FinalDecision!.Outcome); Assert.Empty(await repository.ListAsync(Organization)); Assert.Single(await repository.ListDecidedAsync(Organization, DecisionOutcome.Accepted));
+    }
+
+    [Fact]
+    public async Task DecisionRetrySurvivesRepositoryRecomposition()
+    {
+        var staging = new InMemoryStagingProvider("workbench"); var repository = new WorkbenchDraftRepository(staging); var proposal = await Proposed(repository); var operation = OperationId.New();
+        var first = await repository.DecideAsync(Organization, proposal.Id, proposal.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Rejected, "  Missing evidence  ", operation, Now.AddMinutes(2));
+        var retry = await new WorkbenchDraftRepository(staging).DecideAsync(Organization, proposal.Id, proposal.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Rejected, "  Missing evidence  ", operation, Now.AddHours(1));
+        Assert.Equal(DecisionWriteStatus.AlreadyApplied, retry.Status); Assert.Equal(first.Record, retry.Record); Assert.Equal("Missing evidence", retry.Record!.FinalDecision!.Note);
+    }
+
     private static AdrDraft Draft() => AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Choose a database"), Now);
     private static AdrDraft CompleteDraft() => AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Choose a database", "Context", "Decision", "Consequences"), Now);
+    private static async Task<AdrProposal> Proposed(WorkbenchDraftRepository repository) { var draft = CompleteDraft(); await repository.CreateAsync(draft, OperationId.New()); return (await repository.ProposeAsync(Organization, Author, draft.Id, draft.Version, OperationId.New(), Now.AddMinutes(1))).Proposal!; }
 }
