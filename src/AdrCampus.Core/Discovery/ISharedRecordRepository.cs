@@ -17,11 +17,16 @@ public enum SharedRecordView
     All
 }
 
+public enum SharedRecordSort { Identifier, Title, Status, Author, RelevantDate }
+public enum SortDirection { Ascending, Descending }
+
 public sealed record SharedRecordItem(
     AdrId Id,
     DraftTitle Title,
     AdrLifecycleStatus Status,
     MemberId AuthorId,
+    string AuthorDisplayName,
     MemberId RelevantActorId,
+    string RelevantActorDisplayName,
     string RelevantActorRole,
     DateTimeOffset RelevantAtUtc);

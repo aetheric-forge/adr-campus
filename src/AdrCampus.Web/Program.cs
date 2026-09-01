@@ -97,6 +97,7 @@ builder.Services.AddSingleton<IDraftRepository, WorkbenchDraftRepository>();
 builder.Services.AddSingleton<IProposalRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
 builder.Services.AddSingleton<ISharedRecordRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
 builder.Services.AddScoped<IMemberAuthority, KeycloakMemberAuthority>();
+builder.Services.AddScoped<AdrCampus.Application.Identity.IMemberDisplayNameDirectory, KeycloakMemberDisplayNameDirectory>();
 builder.Services.AddScoped<DraftApplicationService>();
 builder.Services.AddScoped<ProposalApplicationService>();
 builder.Services.AddScoped<AdrCampus.Application.Discovery.DiscoveryApplicationService>();

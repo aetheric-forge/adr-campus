@@ -2,47 +2,48 @@
 @using AdrCampus.Core.Discovery
 @using AdrCampus.Core.Domain
 @using AdrCampus.Web.Drafts
-@using AdrCampus.Web.Members
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject DiscoveryApplicationService Discovery
 @inject CurrentOrganization Organization
-@inject MemberRosterService Roster
 
-@if (_loading)
+@if (View == SharedRecordView.All)
 {
-    <section class="placeholder-panel" aria-live="polite"><h2>Loading @ViewLabel.ToLowerInvariant()</h2></section>
+    <form class="filter-panel" method="get" action="records">
+        <fieldset><legend>Status</legend>@foreach (var status in SharedStatuses) { <label><input type="checkbox" name="status" value="@status" checked="@_statuses.Contains(status)" /> @status</label> }</fieldset>
+        @if (_sort is not null) { <input type="hidden" name="sort" value="@_sort.ToString()" /><input type="hidden" name="direction" value="@_direction.ToString()" /> }
+        <div class="filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" href="records">Clear filters</a></div>
+    </form>
 }
-else if (_result?.Status == DiscoveryQueryStatus.Unauthorized)
-{
-    <section class="placeholder-panel" role="alert"><h2>Decision record unavailable</h2><p>Current organization membership could not be established.</p></section>
-}
-else if (_result?.Status == DiscoveryQueryStatus.Unavailable)
-{
-    <section class="placeholder-panel" role="alert"><h2>Decision record temporarily unavailable</h2><p>No partial result set is being shown. Refresh the page to try again.</p></section>
-}
-else if (_result?.IsOrganizationEmpty == true)
-{
-    <section class="empty-state"><span class="empty-icon" aria-hidden="true">A</span><h2>No shared ADRs yet</h2><p>Records become visible to the organization when an author proposes a complete draft.</p><a class="button button-secondary" href="drafts/new">Draft the first decision</a></section>
-}
-else if (_result?.IsViewEmpty == true)
-{
-    <section class="placeholder-panel"><h2>@EmptyTitle</h2><p>@EmptyMessage</p></section>
-}
+
+@if (_loading) { <section class="placeholder-panel" aria-live="polite"><h2>Loading @ViewLabel.ToLowerInvariant()</h2></section> }
+else if (_parseInvalid || _result?.Status == DiscoveryQueryStatus.Invalid) { <section class="placeholder-panel" role="alert"><h2>Invalid result request</h2><p>One or more filters, sorting choices, or page values are not supported. Clear the controls and try again.</p><a class="button button-secondary" href="@BasePath">Clear controls</a></section> }
+else if (_result?.Status == DiscoveryQueryStatus.Unauthorized) { <section class="placeholder-panel" role="alert"><h2>Decision record unavailable</h2><p>Current organization membership could not be established.</p></section> }
+else if (_result?.Status == DiscoveryQueryStatus.Unavailable) { <section class="placeholder-panel" role="alert"><h2>Decision record temporarily unavailable</h2><p>No partial result set is being shown. Refresh the page to try again.</p></section> }
+else if (_result?.IsOrganizationEmpty == true) { <section class="empty-state"><span class="empty-icon" aria-hidden="true">A</span><h2>No shared ADRs yet</h2><p>Records become visible to the organization when an author proposes a complete draft.</p><a class="button button-secondary" href="drafts/new">Draft the first decision</a></section> }
+else if (_result?.IsViewEmpty == true) { <section class="placeholder-panel"><h2>@EmptyTitle</h2><p>@EmptyMessage</p>@if (_statuses.Count > 0) { <a class="button button-secondary" href="records">Clear filters</a> }</section> }
 else if (_result is { IsSuccess: true })
 {
-    <section class="draft-list" aria-label="@ViewLabel">
+    <div class="result-summary"><span><strong>@_result.TotalMatchingCount</strong> matching @(_result.TotalMatchingCount == 1 ? "record" : "records")</span><span>Page @_result.Query.Page of @_result.TotalPages</span></div>
+    <section class="record-table" aria-label="@ViewLabel">
+        <div class="record-columns" role="row">
+            @SortHeading("ADR", SharedRecordSort.Identifier)
+            @SortHeading("Title", SharedRecordSort.Title)
+            @SortHeading("Status", SharedRecordSort.Status)
+            @SortHeading("Author", SharedRecordSort.Author)
+            @SortHeading("Lifecycle date", SharedRecordSort.RelevantDate)
+        </div>
         @foreach (var item in _result.Items)
         {
-            <a class="draft-row" href="@($"proposals/{item.Id.Value:D}")">
-                <span class="draft-identity">
-                    <strong>@item.Title.Value</strong>
-                    <small>ADR @item.Id.Value.ToString("D") · Author @_names.For(item.AuthorId.Value)</small>
-                    <small>@item.RelevantActorRole @_names.For(item.RelevantActorId.Value) · @EventLabel(item.Status) @item.RelevantAtUtc.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt")</small>
-                </span>
-                <span class="role-badge @StatusClass(item.Status)">@item.Status</span>
+            <a class="record-row" href="@($"proposals/{item.Id.Value:D}")">
+                <span class="record-id">@ShortId(item.Id)</span><strong>@item.Title.Value</strong><span class="role-badge @StatusClass(item.Status)">@item.Status</span><span>@item.AuthorDisplayName</span><span><time datetime="@item.RelevantAtUtc.ToString("O")">@item.RelevantAtUtc.ToLocalTime().ToString("MMM d, yyyy")</time><small>@item.RelevantActorRole @item.RelevantActorDisplayName</small></span>
             </a>
         }
     </section>
+    <nav class="pagination" aria-label="Result pages">
+        @if (_result.HasPreviousPage) { <a class="button button-secondary" href="@BuildUrl(page: _result.Query.Page - 1)">Previous</a> } else { <button class="button button-secondary" disabled>Previous</button> }
+        <span>Page @_result.Query.Page of @_result.TotalPages</span>
+        @if (_result.HasNextPage) { <a class="button button-secondary" href="@BuildUrl(page: _result.Query.Page + 1)">Next</a> } else { <button class="button button-secondary" disabled>Next</button> }
+    </nav>
 }
 
 @code {
@@ -50,50 +51,44 @@ else if (_result is { IsSuccess: true })
     [Parameter, EditorRequired] public string ViewLabel { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string EmptyTitle { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string EmptyMessage { get; set; } = string.Empty;
-
-    private DiscoveryQueryResult? _result;
-    private MemberDisplayNames _names = new(false, new Dictionary<string, string>());
-    private bool _loading = true;
+    [Parameter] public string[]? Status { get; set; }
+    [Parameter] public string? Sort { get; set; }
+    [Parameter] public string? Direction { get; set; }
+    [Parameter] public int Page { get; set; } = 1;
+    private static readonly AdrLifecycleStatus[] SharedStatuses = [AdrLifecycleStatus.Proposed, AdrLifecycleStatus.Accepted, AdrLifecycleStatus.Rejected, AdrLifecycleStatus.Superseded];
+    private DiscoveryQueryResult? _result; private HashSet<AdrLifecycleStatus> _statuses = []; private SharedRecordSort? _sort; private SortDirection _direction = SortDirection.Descending; private bool _parseInvalid; private bool _loading = true;
+    private string BasePath => View switch { SharedRecordView.Current => "", SharedRecordView.Proposed => "proposed", SharedRecordView.Historical => "historical", _ => "records" };
 
     protected override async Task OnParametersSetAsync()
     {
-        _loading = true;
+        _loading = true; _parseInvalid = false; _statuses = [];
         try
         {
-            var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            var subjectId = authentication.User.FindFirst("sub")?.Value;
-            if (string.IsNullOrWhiteSpace(subjectId))
-            {
-                _result = DiscoveryQueryResult.Unauthorized();
-                return;
-            }
-
-            _result = await Discovery.BrowseAsync(new DiscoveryQuery(Organization.Id, new MemberId(subjectId), View));
-            if (_result.IsSuccess && _result.Items.Count > 0)
-            {
-                _names = await Roster.GetDisplayNamesAsync();
-            }
+            if (Status is { Length: > 0 }) foreach (var value in Status) { if (Enum.TryParse<AdrLifecycleStatus>(value, true, out var parsed) && SharedStatuses.Contains(parsed)) _statuses.Add(parsed); else _parseInvalid = true; }
+            _sort = string.IsNullOrWhiteSpace(Sort) ? null : Enum.TryParse<SharedRecordSort>(Sort, true, out var parsedSort) ? parsedSort : null;
+            if (!string.IsNullOrWhiteSpace(Sort) && _sort is null) _parseInvalid = true;
+            _direction = string.IsNullOrWhiteSpace(Direction) ? SortDirection.Descending : Enum.TryParse<SortDirection>(Direction, true, out var parsedDirection) ? parsedDirection : SortDirection.Descending;
+            if (!string.IsNullOrWhiteSpace(Direction) && !Enum.TryParse<SortDirection>(Direction, true, out _)) _parseInvalid = true;
+            if (Page < 1 || (View != SharedRecordView.All && _statuses.Count > 0)) _parseInvalid = true;
+            if (_parseInvalid) return;
+            var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var subjectId = auth.User.FindFirst("sub")?.Value;
+            if (string.IsNullOrWhiteSpace(subjectId)) { _result = DiscoveryQueryResult.Unauthorized(new(Organization.Id, new MemberId("unavailable"), View)); return; }
+            _result = await Discovery.BrowseAsync(new(Organization.Id, new MemberId(subjectId), View, _statuses, _sort, _direction, Page));
         }
-        finally
-        {
-            _loading = false;
-        }
+        finally { _loading = false; }
     }
 
-    private static string EventLabel(AdrLifecycleStatus status) => status switch
+    private RenderFragment SortHeading(string label, SharedRecordSort sort) => builder =>
     {
-        AdrLifecycleStatus.Proposed => "Proposed",
-        AdrLifecycleStatus.Accepted => "Accepted",
-        AdrLifecycleStatus.Rejected => "Rejected",
-        AdrLifecycleStatus.Superseded => "Superseded",
-        _ => "Updated"
+        var active = _sort == sort; var next = active && _direction == SortDirection.Ascending ? SortDirection.Descending : SortDirection.Ascending; var marker = active ? (_direction == SortDirection.Ascending ? " ↑" : " ↓") : string.Empty;
+        builder.OpenElement(0, "a"); builder.AddAttribute(1, "href", BuildUrl(sort, next, 1)); builder.AddAttribute(2, "aria-current", active ? "true" : null); builder.AddContent(3, label + marker); builder.CloseElement();
     };
-
-    private static string StatusClass(AdrLifecycleStatus status) => status switch
+    private string BuildUrl(SharedRecordSort? sort = null, SortDirection? direction = null, int? page = null)
     {
-        AdrLifecycleStatus.Accepted => "role-accepted",
-        AdrLifecycleStatus.Rejected => "role-rejected",
-        AdrLifecycleStatus.Superseded => "role-superseded",
-        _ => "role-proposed"
-    };
+        var values = new List<string>(); foreach (var status in _statuses.OrderBy(value => value)) values.Add($"status={Uri.EscapeDataString(status.ToString())}");
+        var selectedSort = sort ?? _sort; if (selectedSort is not null) { values.Add($"sort={selectedSort}"); values.Add($"direction={direction ?? _direction}"); }
+        var selectedPage = page ?? Page; if (selectedPage > 1) values.Add($"page={selectedPage}"); return values.Count == 0 ? BasePath : $"{BasePath}?{string.Join("&", values)}";
+    }
+    private static string ShortId(AdrId id) => id.Value.ToString("N")[..8].ToUpperInvariant();
+    private static string StatusClass(AdrLifecycleStatus status) => status switch { AdrLifecycleStatus.Accepted => "role-accepted", AdrLifecycleStatus.Rejected => "role-rejected", AdrLifecycleStatus.Superseded => "role-superseded", _ => "role-proposed" };
 }

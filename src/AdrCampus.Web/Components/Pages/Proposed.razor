@@ -2,4 +2,5 @@
 @using AdrCampus.Core.Discovery
 @using AdrCampus.Web.Components.Discovery
 <PageTitle>Proposed decisions</PageTitle><div class="page-header"><div><span class="eyebrow">Decision record</span><h1>Proposed decisions</h1><p>ADRs awaiting a maintainer decision.</p></div></div>
-<SharedRecordList View="SharedRecordView.Proposed" ViewLabel="Proposed decisions" EmptyTitle="No proposals awaiting review" EmptyMessage="Shared ADRs exist, but none are currently awaiting a maintainer decision." />
+<SharedRecordList View="SharedRecordView.Proposed" ViewLabel="Proposed decisions" EmptyTitle="No proposals awaiting review" EmptyMessage="Shared ADRs exist, but none are currently awaiting a maintainer decision." Sort="@Sort" Direction="@Direction" Page="@(Page ?? 1)" />
+@code { [SupplyParameterFromQuery] public string? Sort { get; set; } [SupplyParameterFromQuery] public string? Direction { get; set; } [SupplyParameterFromQuery] public int? Page { get; set; } }
