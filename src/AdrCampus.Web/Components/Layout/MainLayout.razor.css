@@ -2,11 +2,13 @@
 .sidebar { width: 264px; flex: 0 0 264px; background: #17231f; }
 main { min-width: 0; flex: 1; }
 .top-row { min-height: 72px; padding: 0 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #deddd6; background: rgba(255, 255, 252, .92); }
-.organization, .account, .account > span:last-child { display: flex; }
+.organization, .account, .account-identity { display: flex; }
 .organization { flex-direction: column; gap: 2px; }
 .organization-label, .account small { color: #6c716d; font-size: .74rem; }
 .account { align-items: center; gap: 10px; }
-.account > span:last-child { flex-direction: column; }
+.account-identity { flex-direction: column; }
+.account-view-toggle, .account-signout { padding: 4px 0; border: 0; background: transparent; color: #24533c; font: inherit; font-size: .78rem; cursor: pointer; }
+.account-view-toggle:hover, .account-signout:hover { text-decoration: underline; }
 .avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #dbe7df; color: #24533c; font-size: .75rem; font-weight: 700; }
 .content { width: min(1120px, 100%); margin: 0 auto; padding: 54px 48px 80px; }
 #blazor-error-ui { color-scheme: light only; background: #fff1c7; bottom: 0; box-shadow: 0 -1px 4px rgba(0,0,0,.15); display: none; left: 0; padding: .8rem 1.25rem; position: fixed; width: 100%; z-index: 1000; }

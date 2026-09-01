@@ -8,6 +8,8 @@ Architectural decisions are valuable beyond the moment in which they are made. T
 
 This document defines the people, lifecycle, and journeys that shape the first useful version of ADR Campus. The individual story documents refine those journeys into behavior and acceptance criteria. Together, they describe what the application must enable without prescribing how it must be implemented.
 
+Incremental implementation milestones are tracked separately in the [delivery roadmap](../roadmap.md). The roadmap records release sequencing without changing the behavior or acceptance criteria defined by these stories.
+
 ## Product Goal
 
 ADR Campus enables a basic organization to maintain a trustworthy and navigable record of its architectural decisions.

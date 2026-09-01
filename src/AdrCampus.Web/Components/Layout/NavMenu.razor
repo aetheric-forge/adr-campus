@@ -1,3 +1,8 @@
+@if (IsMaintainer && !ViewAsMember)
+{
+    <div class="view-banner">Maintainer view</div>
+}
+
 <div class="brand-row">
     <a class="brand" href="" aria-label="ADR Campus home"><span class="brand-mark" aria-hidden="true">A</span><span>ADR Campus</span></a>
 </div>
@@ -21,7 +26,18 @@
         <div class="nav-section">
             <span class="nav-heading">Organization</span>
             <div class="nav-item"><NavLink class="nav-link" href="members"><span class="nav-icon" aria-hidden="true">◎</span> Members</NavLink></div>
-            <div class="nav-item"><NavLink class="nav-link" href="administration"><span class="nav-icon" aria-hidden="true">◇</span> Administration</NavLink></div>
+            @if (IsMaintainer && !ViewAsMember)
+            {
+                <div class="nav-item"><NavLink class="nav-link" href="administration"><span class="nav-icon" aria-hidden="true">◇</span> Administration</NavLink></div>
+            }
         </div>
     </nav>
 </div>
+
+@code {
+    [Parameter]
+    public bool IsMaintainer { get; set; }
+
+    [Parameter]
+    public bool ViewAsMember { get; set; }
+}

@@ -1,0 +1,11 @@
+@page "/drafts/{DraftId:guid}/preview"
+@using AdrCampus.Application.Drafts
+@using AdrCampus.Core.Domain
+@using AdrCampus.Web.Drafts
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DraftApplicationService Drafts
+@inject CurrentOrganization Organization
+<PageTitle>Draft preview</PageTitle>
+@if (_draft is null) { <section class="placeholder-panel"><h1>@(_loading ? "Loading preview" : "Draft not found")</h1></section> }
+else { <div class="preview-banner" role="status">Preview only · This ADR has not been proposed or accepted</div><div class="page-header"><div><span class="eyebrow">Proposed ADR preview</span><h1>@_draft.Content.Title.Value</h1></div><a class="button button-secondary" href="@($"drafts/{DraftId:D}")">Return to draft</a></div><article class="adr-preview"><section><h2>Context</h2><p>@Text(_draft.Content.Context)</p></section><section><h2>Decision</h2><p>@Text(_draft.Content.Decision)</p></section><section><h2>Consequences</h2><p>@Text(_draft.Content.Consequences)</p></section></article> }
+@code { [Parameter] public Guid DraftId { get; set; } private AdrDraft? _draft; private bool _loading = true; protected override async Task OnParametersSetAsync() { try { var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var sub = auth.User.FindFirst("sub")?.Value; if (!string.IsNullOrWhiteSpace(sub) && DraftId != Guid.Empty) _draft = (await Drafts.GetMineAsync(Organization.Id, new MemberId(sub), new AdrId(DraftId))).Draft; } finally { _loading = false; } } private static string Text(string value) => string.IsNullOrWhiteSpace(value) ? "Not yet recorded." : value; }

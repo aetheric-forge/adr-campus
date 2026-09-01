@@ -1,4 +1,15 @@
+using AdrCampus.Application.Drafts;
+using AdrCampus.Application.Identity;
+using AdrCampus.Core.Domain;
+using AdrCampus.Core.Drafts;
+using AdrCampus.Providers.Drafts.InMemory;
+using AdrCampus.Providers.Drafts.Workbench;
+using AethericForge.Runtime.Abstractions.Interfaces.Staging.Providers;
+using AethericForge.Runtime.Providers.Staging.InMemory;
+using AethericForge.Runtime.Providers.Staging.Redis;
+using StackExchange.Redis;
 using AdrCampus.Web.Components;
+using AdrCampus.Web.Drafts;
 using AdrCampus.Web.Identity;
 using AdrCampus.Web.Members;
 using Microsoft.AspNetCore.Authentication;
@@ -9,6 +20,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+ValidateOrganizationDirectoryConfiguration(builder.Configuration);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -51,14 +63,38 @@ builder.Services
         };
     });
 builder.Services.AddAuthorization(options =>
+{
     options.AddPolicy(IdentityPolicies.ActiveMember, policy =>
     {
         policy.RequireAuthenticatedUser();
         policy.AddRequirements(new ActiveMemberRequirement());
-    }));
+    });
+    options.AddPolicy(IdentityPolicies.ActiveMaintainer, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.AddRequirements(new ActiveMaintainerRequirement());
+    });
+});
 builder.Services.AddScoped<IAuthorizationHandler, ActiveMemberAuthorizationHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, ActiveMaintainerAuthorizationHandler>();
 builder.Services.AddHttpClient(MemberRosterService.HttpClientName);
 builder.Services.AddScoped<MemberRosterService>();
+builder.Services.AddSingleton(TimeProvider.System);
+var redisConnection = builder.Configuration.GetConnectionString("Redis");
+if (string.IsNullOrWhiteSpace(redisConnection))
+{
+    builder.Services.AddSingleton<IStagingProvider>(_ => new InMemoryStagingProvider("adr-campus-workbench"));
+}
+else
+{
+    builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));
+    builder.Services.AddSingleton<IStagingProvider>(services => new RedisStagingProvider(services.GetRequiredService<IConnectionMultiplexer>(), "adr-campus-workbench"));
+}
+builder.Services.AddSingleton<IDraftRepository, WorkbenchDraftRepository>();
+builder.Services.AddScoped<IMemberAuthority, KeycloakMemberAuthority>();
+builder.Services.AddScoped<DraftApplicationService>();
+builder.Services.AddSingleton(new CurrentOrganization(
+    new OrganizationId(builder.Configuration["Organization:Id"]!)));
 
 var app = builder.Build();
 
@@ -109,3 +145,27 @@ static string LocalReturnUrl(string? returnUrl) =>
     !returnUrl.StartsWith("//", StringComparison.Ordinal)
         ? returnUrl
         : "/";
+
+static void ValidateOrganizationDirectoryConfiguration(IConfiguration configuration)
+{
+    var memberGroup = configuration["Organization:MemberGroupId"]?.Trim();
+    var maintainerGroup = configuration["Organization:MaintainerGroupId"]?.Trim();
+    var organizationId = configuration["Organization:Id"]?.Trim();
+    if (string.IsNullOrWhiteSpace(organizationId))
+    {
+        throw new InvalidOperationException("Configuration value 'Organization:Id' is required.");
+    }
+    if (string.IsNullOrWhiteSpace(memberGroup))
+    {
+        throw new InvalidOperationException("Configuration value 'Organization:MemberGroupId' is required.");
+    }
+    if (string.IsNullOrWhiteSpace(maintainerGroup))
+    {
+        throw new InvalidOperationException("Configuration value 'Organization:MaintainerGroupId' is required.");
+    }
+    if (string.Equals(memberGroup, maintainerGroup, StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "The member and maintainer groups must be configured as distinct Keycloak groups.");
+    }
+}
