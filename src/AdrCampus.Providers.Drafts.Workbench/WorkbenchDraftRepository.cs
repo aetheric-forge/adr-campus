@@ -133,6 +133,8 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
             .ToArray();
     }
 
+    public Task<AdrProposal?> GetSharedAsync(OrganizationId organizationId, AdrId id, CancellationToken cancellationToken = default) => GetAsync(organizationId, id, cancellationToken);
+
     private async Task<DraftWriteResult> WriteAsync(OperationId operationId, string kind, AdrDraft draft, long? expectedVersion, Func<Catalog, DraftWriteResult> apply, CancellationToken cancellationToken)
     {
         await using var handle = await staging.AcquireLockAsync(Reference, TimeSpan.FromMinutes(1), cancellationToken).ConfigureAwait(false);

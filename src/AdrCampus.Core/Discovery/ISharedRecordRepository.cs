@@ -4,6 +4,7 @@ namespace AdrCampus.Core.Discovery;
 
 public interface ISharedRecordRepository
 {
+    Task<AdrProposal?> GetSharedAsync(OrganizationId organizationId, AdrId id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AdrProposal>> ListSharedAsync(
         OrganizationId organizationId,
         CancellationToken cancellationToken = default);

@@ -80,6 +80,16 @@ h1:focus { outline: none; }
 .record-row:hover { background: #fafbf8; color: var(--ink); }
 .record-row small { display: block; margin-top: 3px; color: var(--muted); }
 .record-id { font-family: ui-monospace, monospace; font-size: .78rem; }
+.record-metadata { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.record-metadata div { display: flex; flex-direction: column; gap: 3px; }
+.record-metadata small { color: var(--muted); }
+.lifecycle-history { margin-top: 24px; padding: 26px 28px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.lifecycle-history ol { margin: 0; padding: 0; list-style: none; }
+.lifecycle-history li { position: relative; padding: 0 0 22px 28px; }
+.lifecycle-history li:not(:last-child)::before { content: ""; position: absolute; left: 6px; top: 13px; bottom: 0; border-left: 2px solid var(--line); }
+.lifecycle-history li:last-child { padding-bottom: 0; }
+.history-marker { position: absolute; left: 0; top: 5px; width: 14px; height: 14px; border: 3px solid var(--paper); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.lifecycle-history p { margin: 3px 0 0; }
 .pagination { margin-top: 18px; }
 .form-actions { margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px; }
 .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
@@ -114,5 +124,6 @@ a.feature-card:hover { border-color: #9ab5a4; transform: translateY(-1px); }
     .filter-actions { justify-content: flex-start; }
     .record-table { overflow-x: auto; }
     .record-columns, .record-row { min-width: 760px; }
+    .record-metadata { grid-template-columns: 1fr; }
     .role-badge { width: max-content; grid-column: 2; }
 }

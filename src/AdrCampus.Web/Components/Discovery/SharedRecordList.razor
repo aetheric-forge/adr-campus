@@ -5,6 +5,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject DiscoveryApplicationService Discovery
 @inject CurrentOrganization Organization
+@inject NavigationManager Navigation
 @implements IDisposable
 
 <div class="omnibar">
@@ -15,7 +16,7 @@
         <button class="button button-primary" type="submit">Search</button>
     </form>
     @if (_suggesting) { <div class="suggestion-panel" aria-live="polite">Searching…</div> }
-    else if (_suggestions.Count > 0) { <div class="suggestion-panel" role="listbox">@foreach (var item in _suggestions) { <a href="@($"proposals/{item.Id.Value:D}")" role="option"><strong>@item.Title.Value</strong><small>@item.Status · @item.AuthorDisplayName</small></a> }@if (_suggestionsHaveMore) { <a class="view-all" href="@BuildUrl(page: 1)">View all results</a> }</div> }
+    else if (_suggestions.Count > 0) { <div class="suggestion-panel" role="listbox">@foreach (var item in _suggestions) { <a href="@DetailUrl(item.Id)" role="option"><strong>@item.Title.Value</strong><small>@item.Status · @item.AuthorDisplayName</small></a> }@if (_suggestionsHaveMore) { <a class="view-all" href="@BuildUrl(page: 1)">View all results</a> }</div> }
 </div>
 
 @if (View == SharedRecordView.All)
@@ -47,7 +48,7 @@ else if (_result is { IsSuccess: true })
         </div>
         @foreach (var item in _result.Items)
         {
-            <a class="record-row" href="@($"proposals/{item.Id.Value:D}")">
+            <a class="record-row" href="@DetailUrl(item.Id)">
                 <span class="record-id">@ShortId(item.Id)</span><strong>@item.Title.Value</strong><span class="role-badge @StatusClass(item.Status)">@item.Status</span><span>@item.AuthorDisplayName</span><span><time datetime="@item.RelevantAtUtc.ToString("O")">@item.RelevantAtUtc.ToLocalTime().ToString("MMM d, yyyy")</time><small>@item.RelevantActorRole @item.RelevantActorDisplayName</small></span>
             </a>
         }
@@ -115,6 +116,7 @@ else if (_result is { IsSuccess: true })
         var selectedPage = page ?? Page; if (selectedPage > 1) values.Add($"page={selectedPage}"); var path = string.IsNullOrEmpty(BasePath) ? "/" : BasePath; return values.Count == 0 ? path : $"{path}?{string.Join("&", values)}";
     }
     private void CancelSuggestions() { _suggestionCancellation?.Cancel(); _suggestionCancellation?.Dispose(); _suggestionCancellation = null; _suggesting = false; }
+    private string DetailUrl(AdrId id) { var relative = Navigation.ToBaseRelativePath(Navigation.Uri); var returnUrl = string.IsNullOrEmpty(relative) ? "/" : $"/{relative}"; return $"proposals/{id.Value:D}?returnUrl={Uri.EscapeDataString(returnUrl)}"; }
     public void Dispose() => CancelSuggestions();
     private static string ShortId(AdrId id) => id.Value.ToString("N")[..8].ToUpperInvariant();
     private static string StatusClass(AdrLifecycleStatus status) => status switch { AdrLifecycleStatus.Accepted => "role-accepted", AdrLifecycleStatus.Rejected => "role-rejected", AdrLifecycleStatus.Superseded => "role-superseded", _ => "role-proposed" };

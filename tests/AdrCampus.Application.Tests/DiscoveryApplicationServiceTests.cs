@@ -226,6 +226,63 @@ public sealed class DiscoveryApplicationServiceTests
         Assert.Single(result.Items);
     }
 
+    [Fact]
+    public async Task DetailBuildsOrderedHistoryWithStableActorAttribution()
+    {
+        var record = Decided(1, DecisionOutcome.Rejected, 2);
+        var names = new Names(new Dictionary<string, string> { ["author"] = "Alice Author", ["proposer"] = "Paula Proposer", ["decider"] = "Dana Decider" });
+        var result = await new DiscoveryApplicationService(new Repository([record]), new Authority(true), names).GetDetailAsync(Organization, Member, record.Id);
+
+        Assert.Equal(SharedDetailStatus.Success, result.Status);
+        Assert.Equal("Alice Author", result.Detail!.Author.DisplayName);
+        Assert.Equal("Paula Proposer", result.Detail.Proposer.DisplayName);
+        Assert.Equal("Dana Decider", result.Detail.Decider!.DisplayName);
+        Assert.Equal(new[] { LifecycleEventType.Created, LifecycleEventType.Proposed, LifecycleEventType.Rejected }, result.Detail.History.Select(item => item.Type));
+        Assert.Equal(result.Detail.History.OrderBy(item => item.OccurredAtUtc), result.Detail.History);
+        Assert.Equal("Reason", result.Detail.History[^1].Note);
+        Assert.Empty(result.Detail.Relationships);
+    }
+
+    [Fact]
+    public async Task DetailUsesStableIdentifierWhenActorIsNoLongerInDirectory()
+    {
+        var record = Proposed(1, author: "former-author-id");
+        var names = new Names(new Dictionary<string, string> { ["proposer"] = "Paula Proposer" });
+        var result = await new DiscoveryApplicationService(new Repository([record]), new Authority(true), names).GetDetailAsync(Organization, Member, record.Id);
+
+        Assert.False(result.Detail!.Author.IsCurrentMember);
+        Assert.Equal("Former member (former-a)", result.Detail.Author.DisplayName);
+        Assert.True(result.Detail.Proposer.IsCurrentMember);
+        Assert.Equal(new[] { LifecycleEventType.Created, LifecycleEventType.Proposed }, result.Detail.History.Select(item => item.Type));
+    }
+
+    [Fact]
+    public async Task UnauthorizedDetailDoesNotReachSharedRepository()
+    {
+        var repository = new Repository([Proposed(1)]);
+        var result = await new DiscoveryApplicationService(repository, new Authority(false), new Names()).GetDetailAsync(Organization, Member, Proposed(1).Id);
+
+        Assert.Equal(SharedDetailStatus.Unauthorized, result.Status);
+        Assert.Equal(0, repository.Calls);
+    }
+
+    [Fact]
+    public async Task DetailRejectsProviderRecordFromAnotherOrganization()
+    {
+        var record = Proposed(1) with { OrganizationId = new OrganizationId("other") };
+        var result = await Service([record]).GetDetailAsync(Organization, Member, record.Id);
+        Assert.Equal(SharedDetailStatus.NotFound, result.Status);
+    }
+
+    [Fact]
+    public async Task DetailDirectoryFailureReturnsUnavailableWithoutPartialData()
+    {
+        var record = Proposed(1);
+        var result = await new DiscoveryApplicationService(new Repository([record]), new Authority(true), new Names(available: false)).GetDetailAsync(Organization, Member, record.Id);
+        Assert.Equal(SharedDetailStatus.Unavailable, result.Status);
+        Assert.Null(result.Detail);
+    }
+
     private static DiscoveryApplicationService Service(IReadOnlyList<AdrProposal> records) => new(new Repository(records), new Authority(true), new Names());
     private static AdrProposal Proposed(int id, int proposedMinute = 0, string title = "Decision title", string author = "author") => new(new AdrId(new Guid(id, 0, 0, new byte[8])), Organization, new(author), new("proposer"), new(new(title), "Context", "Decision", "Consequences"), Now, Now.AddMinutes(proposedMinute), 1);
     private static AdrProposal Decided(int id, DecisionOutcome outcome, int decidedMinute = 2) => Proposed(id).Decide(outcome, new MemberId("decider"), outcome == DecisionOutcome.Accepted ? "" : "Reason", Now.AddMinutes(decidedMinute));
@@ -238,6 +295,13 @@ public sealed class DiscoveryApplicationServiceTests
             Calls++;
             if (exception is not null) throw exception;
             return Task.FromResult(records);
+        }
+
+        public Task<AdrProposal?> GetSharedAsync(OrganizationId organizationId, AdrId id, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            if (exception is not null) throw exception;
+            return Task.FromResult(records.FirstOrDefault(record => record.Id == id));
         }
     }
 
