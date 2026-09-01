@@ -2,7 +2,7 @@
 
 ADR Campus is being delivered in small, usable releases on the way to the first complete decision workflow described by the user stories. Version numbers describe implementation milestones; they do not replace or redefine the product stories.
 
-## Completed Foundation
+## Completed Releases
 
 ### v0.2 — Identity and Application Security
 
@@ -19,15 +19,19 @@ Version 0.2 establishes the trusted organizational boundary required by every la
 
 The detailed release record is in [releases/v0.2.md](releases/v0.2.md).
 
-## Planned Workflow Releases
-
 ### v0.3 — Draft a Decision
 
-Implement the private draft journey described by [01-draft-a-decision.md](stories/01-draft-a-decision.md): create, revise, list, and preview a draft while preserving its stable identity, authorship, and timestamps.
+Version 0.3 implements the private drafting journey: creation, revision, author-private listing and viewing, optimistic concurrency, preview, and Redis-backed Workbench persistence.
+
+## Active Release
 
 ### v0.4 — Propose, Review, and Decide
 
 Implement proposal and maintainer decision transitions from [02-propose-a-decision.md](stories/02-propose-a-decision.md) and [03-review-and-decide.md](stories/03-review-and-decide.md), including validation, immutable proposed content, idempotent operations, acceptance, and rejection.
+
+The detailed scope is in [releases/v0.4.md](releases/v0.4.md), with implementation sequencing in [backlog/v0.4.md](backlog/v0.4.md).
+
+## Planned Workflow Releases
 
 ### v0.5 — Discover and Understand Decisions
 
