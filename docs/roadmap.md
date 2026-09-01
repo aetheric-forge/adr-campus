@@ -23,19 +23,21 @@ The detailed release record is in [releases/v0.2.md](releases/v0.2.md).
 
 Version 0.3 implements the private drafting journey: creation, revision, author-private listing and viewing, optimistic concurrency, preview, and Redis-backed Workbench persistence.
 
-## Active Release
-
 ### v0.4 — Propose, Review, and Decide
 
-Implement proposal and maintainer decision transitions from [02-propose-a-decision.md](stories/02-propose-a-decision.md) and [03-review-and-decide.md](stories/03-review-and-decide.md), including validation, immutable proposed content, idempotent operations, acceptance, and rejection.
+Version 0.4 implements proposal and maintainer decision transitions, including validation, immutable proposed content, idempotent operations, acceptance, rejection, and durable shared records.
 
-The detailed scope is in [releases/v0.4.md](releases/v0.4.md), with implementation sequencing in [backlog/v0.4.md](backlog/v0.4.md).
+The detailed release record is in [releases/v0.4.md](releases/v0.4.md).
 
-## Planned Workflow Releases
+## Active Release
 
 ### v0.5 — Discover and Understand Decisions
 
 Implement the authorization-aware current, proposed, historical, and all-record views defined by [04-discover-and-understand-decisions.md](stories/04-discover-and-understand-decisions.md), including search, filtering, sorting, pagination, and lifecycle history.
+
+The detailed scope is in [releases/v0.5.md](releases/v0.5.md), with implementation sequencing in [backlog/v0.5.md](backlog/v0.5.md).
+
+## Planned Workflow Releases
 
 ### v0.6 — Supersede a Decision
 
