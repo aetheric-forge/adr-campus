@@ -43,7 +43,8 @@ public enum DraftWriteStatus
     Created,
     Saved,
     AlreadyApplied,
-    Conflict
+    Conflict,
+    OperationMismatch
 }
 
 public sealed record DraftWriteResult(DraftWriteStatus Status, AdrDraft? Draft)

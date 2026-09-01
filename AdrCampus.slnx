@@ -1,9 +1,11 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/AdrCampus.Core/AdrCampus.Core.csproj" />
+    <Project Path="src/AdrCampus.Providers.Drafts.InMemory/AdrCampus.Providers.Drafts.InMemory.csproj" />
     <Project Path="src/AdrCampus.Web/AdrCampus.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AdrCampus.Core.Tests/AdrCampus.Core.Tests.csproj" />
+    <Project Path="tests/AdrCampus.Providers.Drafts.InMemory.Tests/AdrCampus.Providers.Drafts.InMemory.Tests.csproj" />
   </Folder>
 </Solution>
