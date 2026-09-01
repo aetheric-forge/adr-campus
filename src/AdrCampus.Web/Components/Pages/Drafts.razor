@@ -1,4 +1,22 @@
 @page "/drafts"
+@using AdrCampus.Application.Drafts
+@using AdrCampus.Core.Domain
+@using AdrCampus.Core.Drafts
+@using AdrCampus.Web.Drafts
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DraftApplicationService DraftService
+@inject CurrentOrganization Organization
 <PageTitle>My drafts</PageTitle>
 <div class="page-header"><div><span class="eyebrow">Your work</span><h1>My drafts</h1><p>Your private architectural decision work.</p></div><a class="button button-primary" href="drafts/new">New ADR</a></div>
-<section class="placeholder-panel"><h2>You have no drafts</h2><p>Start a draft to develop a decision before sharing it with the organization.</p></section>
+@if (_isLoading) { <section class="placeholder-panel" aria-live="polite"><h2>Loading drafts</h2><p>Retrieving your private work…</p></section> }
+else if (_errorMessage is not null) { <section class="placeholder-panel form-error" role="alert"><h2>Drafts unavailable</h2><p>@_errorMessage</p></section> }
+else if (_drafts.Count == 0) { <section class="placeholder-panel"><h2>You have no drafts</h2><p>Start a draft to develop a decision before sharing it with the organization.</p></section> }
+else { <section class="draft-list" aria-label="Your ADR drafts">@foreach (var draft in _drafts) { <a class="draft-row" href="@($"drafts/{draft.Id.Value:D}")"><span class="draft-identity"><strong>@draft.Title.Value</strong><small>Modified @draft.ModifiedAtUtc.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt")</small></span><span class="role-badge">Draft</span></a> }</section> }
+@code {
+    private IReadOnlyList<DraftSummary> _drafts = Array.Empty<DraftSummary>(); private bool _isLoading = true; private string? _errorMessage;
+    protected override async Task OnInitializedAsync()
+    {
+        try { var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var subjectId = authentication.User.FindFirst("sub")?.Value; if (string.IsNullOrWhiteSpace(subjectId)) { _errorMessage = "Your signed-in identity could not be established."; return; } var result = await DraftService.ListMineAsync(Organization.Id, new MemberId(subjectId)); if (!result.IsAuthorized) { _errorMessage = "Current membership could not be established."; return; } _drafts = result.Drafts; }
+        finally { _isLoading = false; }
+    }
+}

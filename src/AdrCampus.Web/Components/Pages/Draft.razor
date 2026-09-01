@@ -1,0 +1,17 @@
+@page "/drafts/{DraftId:guid}"
+@using AdrCampus.Application.Drafts
+@using AdrCampus.Core.Domain
+@using AdrCampus.Web.Drafts
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DraftApplicationService DraftService
+@inject CurrentOrganization Organization
+<PageTitle>@(_draft is null ? "Draft" : _draft.Content.Title.Value)</PageTitle>
+@if (_isLoading) { <section class="placeholder-panel" aria-live="polite"><h1>Loading draft</h1></section> }
+else if (_draft is null) { <section class="placeholder-panel" role="alert"><h1>Draft not found</h1><p>This draft does not exist or is not part of your private work.</p><a class="button button-secondary" href="drafts">Return to My drafts</a></section> }
+else { <div class="page-header"><div><span class="eyebrow">ADR draft</span><h1>@_draft.Content.Title.Value</h1><p>Private working material · Version @_draft.Version</p></div><div class="page-actions"><a class="button button-secondary" href="@($"drafts/{DraftId:D}/preview")">Preview</a><a class="button button-primary" href="@($"drafts/{DraftId:D}/edit")">Edit draft</a><a class="button button-secondary" href="drafts">My drafts</a></div></div><article class="adr-preview"><div class="adr-status"><span class="role-badge">Draft</span><span>Last saved @_draft.ModifiedAtUtc.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt")</span></div><section><h2>Context</h2><p>@Text(_draft.Content.Context)</p></section><section><h2>Decision</h2><p>@Text(_draft.Content.Decision)</p></section><section><h2>Consequences</h2><p>@Text(_draft.Content.Consequences)</p></section></article> }
+@code {
+    [Parameter] public Guid DraftId { get; set; }
+    private AdrDraft? _draft; private bool _isLoading = true;
+    protected override async Task OnParametersSetAsync() { _isLoading = true; try { var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var subjectId = authentication.User.FindFirst("sub")?.Value; if (string.IsNullOrWhiteSpace(subjectId) || DraftId == Guid.Empty) { _draft = null; return; } var result = await DraftService.GetMineAsync(Organization.Id, new MemberId(subjectId), new AdrId(DraftId)); _draft = result.Status == GetDraftStatus.Success ? result.Draft : null; } finally { _isLoading = false; } }
+    private static string Text(string value) => string.IsNullOrWhiteSpace(value) ? "Not yet recorded." : value;
+}

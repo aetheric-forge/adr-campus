@@ -67,6 +67,13 @@ public sealed record AdrDraft
         return new AdrDraft(id, organizationId, authorId, content, nowUtc, nowUtc, 1);
     }
 
+    public static AdrDraft Restore(AdrId id, OrganizationId organizationId, MemberId authorId, DraftContent content, DateTimeOffset createdAtUtc, DateTimeOffset modifiedAtUtc, long version)
+    {
+        if (version < 1) throw new ArgumentOutOfRangeException(nameof(version));
+        if (modifiedAtUtc < createdAtUtc) throw new ArgumentOutOfRangeException(nameof(modifiedAtUtc));
+        return new AdrDraft(id, organizationId, authorId, content, createdAtUtc, modifiedAtUtc, version);
+    }
+
     public AdrDraft Revise(DraftContent content, long expectedVersion, DateTimeOffset nowUtc)
     {
         ArgumentNullException.ThrowIfNull(content);

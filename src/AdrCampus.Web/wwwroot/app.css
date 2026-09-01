@@ -31,6 +31,24 @@ h1:focus { outline: none; }
 .form-placeholder label:first-child { margin-top: 0; }
 .form-placeholder label span { color: #777e79; font-size: .72rem; font-weight: 500; }
 .form-placeholder input, .form-placeholder textarea { padding: 12px 13px; resize: vertical; }
+.form-message { margin-bottom: 6px; padding: 12px 14px; border-radius: 7px; }
+.form-error { border-color: #d7aaa4; background: #fff4f2; color: #7b2921; }
+.field-error { margin: -4px 0 2px; color: #a33429; font-size: .82rem; }
+.form-placeholder [aria-invalid="true"] { border-color: #b84a3f; }
+.draft-list { display: grid; gap: 10px; }
+.draft-row { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); text-decoration: none; }
+.draft-row:hover { border-color: #aebbb2; color: var(--ink); box-shadow: 0 2px 8px rgba(25,36,30,.06); }
+.draft-identity { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.draft-identity strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-identity small, .adr-status { color: var(--muted); font-size: .8rem; }
+.adr-preview { display: grid; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.adr-preview > * { padding: 24px 28px; }
+.adr-preview > * + * { border-top: 1px solid var(--line); }
+.adr-preview h2 { margin-bottom: 9px; font-size: 1rem; }
+.adr-preview p { margin: 0; white-space: pre-wrap; }
+.adr-status { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.page-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.preview-banner { margin-bottom: 22px; padding: 12px 16px; border: 1px solid #d9bd72; border-radius: 8px; background: #fff8df; color: #654d16; font-weight: 700; text-align: center; }
 .form-actions { margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px; }
 .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .feature-card { min-height: 190px; padding: 26px; color: inherit; text-decoration: none; }
