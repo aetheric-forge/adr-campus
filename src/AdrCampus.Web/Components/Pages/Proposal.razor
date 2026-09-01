@@ -1,0 +1,10 @@
+@page "/proposals/{ProposalId:guid}"
+@using AdrCampus.Application.Proposals
+@using AdrCampus.Core.Domain
+@using AdrCampus.Web.Drafts
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ProposalApplicationService Proposals
+@inject CurrentOrganization Organization
+<PageTitle>@(_proposal?.Content.Title.Value ?? "Proposal")</PageTitle>
+@if (_loading) { <section class="placeholder-panel"><h1>Loading proposal</h1></section> } else if (_proposal is null) { <section class="placeholder-panel"><h1>Proposal not found</h1><a class="button button-secondary" href="proposed">Proposed decisions</a></section> } else { <div class="page-header"><div><span class="eyebrow">Proposed ADR</span><h1>@_proposal.Content.Title.Value</h1><p>Under consideration · Proposed @_proposal.ProposedAtUtc.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt")</p></div><a class="button button-secondary" href="proposed">All proposals</a></div><article class="adr-preview"><div class="adr-status"><span class="role-badge role-proposed">Proposed</span><span>Author @_proposal.AuthorId.Value · Proposer @_proposal.ProposerId.Value</span></div><section><h2>Context</h2><p>@_proposal.Content.Context</p></section><section><h2>Decision</h2><p>@_proposal.Content.Decision</p></section><section><h2>Consequences</h2><p>@_proposal.Content.Consequences</p></section></article> }
+@code { [Parameter] public Guid ProposalId { get; set; } private AdrProposal? _proposal; private bool _loading = true; protected override async Task OnParametersSetAsync() { try { var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var sub = auth.User.FindFirst("sub")?.Value; if (!string.IsNullOrWhiteSpace(sub) && ProposalId != Guid.Empty) _proposal = (await Proposals.GetAsync(Organization.Id, new MemberId(sub), new AdrId(ProposalId))).Value; } finally { _loading = false; } } }

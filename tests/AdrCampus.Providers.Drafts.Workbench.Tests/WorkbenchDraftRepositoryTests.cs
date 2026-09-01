@@ -1,5 +1,6 @@
 using AdrCampus.Core.Domain;
 using AdrCampus.Core.Drafts;
+using AdrCampus.Core.Proposals;
 using AdrCampus.Providers.Drafts.Workbench;
 using AethericForge.Runtime.Providers.Staging.InMemory;
 
@@ -55,5 +56,30 @@ public sealed class WorkbenchDraftRepositoryTests
         Assert.Equal(revised, loaded);
     }
 
+    [Fact]
+    public async Task ProposalAtomicallyRemovesDraftAndCreatesSharedRecord()
+    {
+        var staging = new InMemoryStagingProvider("workbench"); var repository = new WorkbenchDraftRepository(staging); var draft = CompleteDraft(); await repository.CreateAsync(draft, OperationId.New());
+        var result = await repository.ProposeAsync(Organization, Author, draft.Id, 1, OperationId.New(), Now.AddMinutes(1));
+        Assert.Equal(ProposalWriteStatus.Proposed, result.Status); Assert.Null(await repository.GetByAuthorAsync(Organization, Author, draft.Id)); Assert.Equal(result.Proposal, await repository.GetAsync(Organization, draft.Id));
+    }
+
+    [Fact]
+    public async Task InvalidProposalLeavesPrivateDraftUnchanged()
+    {
+        var staging = new InMemoryStagingProvider("workbench"); var repository = new WorkbenchDraftRepository(staging); var draft = Draft(); await repository.CreateAsync(draft, OperationId.New());
+        var result = await repository.ProposeAsync(Organization, Author, draft.Id, 1, OperationId.New(), Now.AddMinutes(1));
+        Assert.Equal(ProposalWriteStatus.Invalid, result.Status); Assert.NotNull(await repository.GetByAuthorAsync(Organization, Author, draft.Id)); Assert.Null(await repository.GetAsync(Organization, draft.Id));
+    }
+
+    [Fact]
+    public async Task ProposalRejectsStalePreviewAndReplaysRetry()
+    {
+        var staging = new InMemoryStagingProvider("workbench"); var repository = new WorkbenchDraftRepository(staging); var draft = CompleteDraft(); await repository.CreateAsync(draft, OperationId.New());
+        Assert.Equal(ProposalWriteStatus.Conflict, (await repository.ProposeAsync(Organization, Author, draft.Id, 0, OperationId.New(), Now)).Status);
+        var operation = OperationId.New(); await repository.ProposeAsync(Organization, Author, draft.Id, 1, operation, Now); Assert.Equal(ProposalWriteStatus.AlreadyApplied, (await new WorkbenchDraftRepository(staging).ProposeAsync(Organization, Author, draft.Id, 1, operation, Now.AddHours(1))).Status);
+    }
+
     private static AdrDraft Draft() => AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Choose a database"), Now);
+    private static AdrDraft CompleteDraft() => AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Choose a database", "Context", "Decision", "Consequences"), Now);
 }
