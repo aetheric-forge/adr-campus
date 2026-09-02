@@ -244,6 +244,79 @@ public sealed class DiscoveryApplicationServiceTests
     }
 
     [Fact]
+    public async Task DetailShowsFrozenTargetAndInboundPendingReplacements()
+    {
+        var target = Proposed(1, title: "Existing decision").Decide(DecisionOutcome.Accepted, new MemberId("decider"), "", Now.AddMinutes(2));
+        var replacement = Proposed(2, title: "Replacement decision") with { IntendedSupersessionTargetId = target.Id };
+        var service = Service([target, replacement]);
+
+        var replacementDetail = await service.GetDetailAsync(Organization, Member, replacement.Id);
+        var targetDetail = await service.GetDetailAsync(Organization, Member, target.Id);
+
+        Assert.Equal(target.Id, replacementDetail.Detail!.IntendedSupersessionTarget!.Id);
+        Assert.Equal(replacement.Id, Assert.Single(targetDetail.Detail!.ProposedReplacements!).Id);
+    }
+
+    [Fact]
+    public async Task SupersededDetailEndsHistoryWithSupersedingDecision()
+    {
+        var target = Proposed(1, title: "Existing decision").Decide(DecisionOutcome.Accepted, new MemberId("first-decider"), "", Now.AddMinutes(2));
+        var replacement = (Proposed(2, title: "Replacement decision") with { IntendedSupersessionTargetId = target.Id })
+            .Decide(DecisionOutcome.Accepted, new MemberId("replacement-decider"), "", Now.AddMinutes(4))
+            .CompleteSupersessionOf(target.Id, Now.AddMinutes(4));
+        target = target.MarkSupersededBy(replacement.Id, Now.AddMinutes(4));
+        var names = new Names(new Dictionary<string, string> { ["author"] = "Author", ["proposer"] = "Proposer", ["first-decider"] = "First Decider", ["replacement-decider"] = "Replacement Decider" });
+
+        var result = await new DiscoveryApplicationService(new Repository([target, replacement]), new Authority(true), names).GetDetailAsync(Organization, Member, target.Id);
+        var replacementResult = await new DiscoveryApplicationService(new Repository([target, replacement]), new Authority(true), names).GetDetailAsync(Organization, Member, replacement.Id);
+
+        var last = result.Detail!.History[^1];
+        Assert.Equal(LifecycleEventType.Superseded, last.Type);
+        Assert.Equal("Superseded by Replacement decision", last.Label);
+        Assert.Equal("Replacement Decider", last.Actor.DisplayName);
+        Assert.Equal(Now.AddMinutes(4), last.OccurredAtUtc);
+        var relationship = Assert.Single(result.Detail.Relationships);
+        Assert.Equal("Superseded by", relationship.Direction);
+        Assert.Equal(replacement.Id, relationship.RelatedId);
+        var predecessor = Assert.Single(replacementResult.Detail!.Relationships);
+        Assert.Equal("Supersedes", predecessor.Direction);
+        Assert.Equal(target.Id, predecessor.RelatedId);
+    }
+
+    [Fact]
+    public async Task SupersededDiscoveryUsesSupersessionDateAndActor()
+    {
+        var target = Proposed(1, title: "Existing decision").Decide(DecisionOutcome.Accepted, new MemberId("first-decider"), "", Now.AddMinutes(2));
+        var replacement = (Proposed(2, title: "Replacement decision") with { IntendedSupersessionTargetId = target.Id })
+            .Decide(DecisionOutcome.Accepted, new MemberId("replacement-decider"), "", Now.AddMinutes(4))
+            .CompleteSupersessionOf(target.Id, Now.AddMinutes(4));
+        target = target.MarkSupersededBy(replacement.Id, Now.AddMinutes(4));
+        var names = new Names(new Dictionary<string, string> { ["author"] = "Author", ["proposer"] = "Proposer", ["first-decider"] = "First Decider", ["replacement-decider"] = "Replacement Decider" });
+
+        var service = new DiscoveryApplicationService(new Repository([target, replacement]), new Authority(true), names);
+        var result = await service.BrowseAsync(new(Organization, Member, SharedRecordView.Historical));
+        var current = await service.BrowseAsync(new(Organization, Member, SharedRecordView.Current));
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(Now.AddMinutes(4), item.RelevantAtUtc);
+        Assert.Equal("Replacement Decider", item.RelevantActorDisplayName);
+        Assert.Equal("Superseding decider", item.RelevantActorRole);
+        Assert.Equal(replacement.Id, Assert.Single(current.Items).Id);
+    }
+
+    [Fact]
+    public async Task MissingLinkedRecordIsReportedWithoutInventingRelationshipMetadata()
+    {
+        var missing = AdrId.New();
+        var target = Proposed(1, title: "Existing decision").Decide(DecisionOutcome.Accepted, new MemberId("decider"), "", Now.AddMinutes(2)).MarkSupersededBy(missing, Now.AddMinutes(4));
+
+        var result = await Service([target]).GetDetailAsync(Organization, Member, target.Id);
+
+        Assert.Empty(result.Detail!.Relationships);
+        Assert.Equal(1, result.Detail.UnavailableRelationshipCount);
+    }
+
+    [Fact]
     public async Task DetailUsesStableIdentifierWhenActorIsNoLongerInDirectory()
     {
         var record = Proposed(1, author: "former-author-id");

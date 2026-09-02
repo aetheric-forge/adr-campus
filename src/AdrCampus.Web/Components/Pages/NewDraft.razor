@@ -6,40 +6,27 @@
 @inject DraftApplicationService Drafts
 @inject CurrentOrganization Organization
 @inject NavigationManager Navigation
-<PageTitle>New ADR</PageTitle>
-<div class="page-header"><div><span class="eyebrow">New draft</span><h1>Draft an architectural decision</h1><p>Capture the reasoning now; only the title is required to save a draft.</p></div></div>
+<PageTitle>@(HasReplacementTarget ? "New replacement ADR" : "New ADR")</PageTitle>
+<div class="page-header"><div><span class="eyebrow">@(HasReplacementTarget ? "Replacement draft" : "New draft")</span><h1>@(HasReplacementTarget ? "Draft a replacement decision" : "Draft an architectural decision")</h1><p>Capture the reasoning now; only the title is required to save a draft.</p></div></div>
 <EditForm Model="_model" OnSubmit="SaveAsync" FormName="new-draft" class="form-placeholder">
     @if (_errorMessage is not null) { <div class="form-message form-error" role="alert">@_errorMessage</div> }
-    <label for="title">Title <span>Required · 5–160 characters</span></label>
-    <InputText id="title" @bind-Value="_model.Title" maxlength="160" placeholder="What are we deciding?" aria-invalid="@(_titleError is not null)" />
+    <label for="title">Title <span>Required · 5–160 characters</span></label><InputText id="title" @bind-Value="_model.Title" maxlength="160" placeholder="What are we deciding?" aria-invalid="@(_titleError is not null)" />
     @if (_titleError is not null) { <p class="field-error">@_titleError</p> }
     <label for="context">Context</label><InputTextArea id="context" @bind-Value="_model.Context" rows="4" placeholder="What forces make this decision necessary?" />
     <label for="decision">Decision</label><InputTextArea id="decision" @bind-Value="_model.Decision" rows="4" placeholder="What are we proposing?" />
     <label for="consequences">Consequences</label><InputTextArea id="consequences" @bind-Value="_model.Consequences" rows="4" placeholder="What are the positive and negative consequences?" />
+    <label for="replacement-target">Intended replacement target <span>Optional · accepted decisions only</span></label>
+    <select id="replacement-target" @bind="_model.TargetId"><option value="">None — ordinary draft</option>@foreach (var target in _targets) { <option value="@target.Id.Value.ToString("D")">@target.Title.Value</option> }</select>
+    @if (HasReplacementTarget) { <p class="field-guidance">The selected decision remains accepted and in effect while this draft is private.</p> }
     <div class="form-actions"><a class="button button-secondary" href="drafts">Cancel</a><button class="button button-primary" type="submit" disabled="@_isSaving">@(_isSaving ? "Saving…" : "Save draft")</button></div>
 </EditForm>
 @code {
-    private readonly DraftFormModel _model = new();
-    private readonly AdrId _draftId = AdrId.New();
-    private readonly OperationId _operationId = OperationId.New();
-    private bool _isSaving;
-    private string? _titleError;
-    private string? _errorMessage;
-    private async Task SaveAsync()
-    {
-        if (_isSaving) return;
-        _isSaving = true; _titleError = null; _errorMessage = null;
-        try
-        {
-            var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            var subjectId = authentication.User.FindFirst("sub")?.Value;
-            if (string.IsNullOrWhiteSpace(subjectId)) { _errorMessage = "Your signed-in identity could not be established."; return; }
-            var result = await Drafts.CreateAsync(new CreateDraftCommand(_draftId, _operationId, Organization.Id, new MemberId(subjectId), _model.Title, _model.Context, _model.Decision, _model.Consequences));
-            if (result.IsSuccess) { Navigation.NavigateTo($"/drafts/{result.Draft!.Id.Value:D}"); return; }
-            if (result.Status == CreateDraftStatus.Invalid) _titleError = result.ErrorMessage;
-            else _errorMessage = result.ErrorMessage ?? "The draft could not be saved. Your entered content has been preserved.";
-        }
-        finally { _isSaving = false; }
-    }
-    private sealed class DraftFormModel { public string Title { get; set; } = string.Empty; public string Context { get; set; } = string.Empty; public string Decision { get; set; } = string.Empty; public string Consequences { get; set; } = string.Empty; }
+    [SupplyParameterFromQuery(Name = "replacementFor")] public Guid? ReplacementFor { get; set; }
+    private readonly DraftFormModel _model = new(); private readonly AdrId _draftId = AdrId.New(); private readonly OperationId _operationId = OperationId.New();
+    private IReadOnlyList<EligibleSupersessionTarget> _targets = []; private bool _isSaving; private string? _titleError; private string? _errorMessage;
+    private bool HasReplacementTarget => ParseTarget() is not null;
+    protected override async Task OnParametersSetAsync() { var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var subjectId = authentication.User.FindFirst("sub")?.Value; if (string.IsNullOrWhiteSpace(subjectId)) return; _targets = (await Drafts.ListEligibleSupersessionTargetsAsync(Organization.Id, new MemberId(subjectId), _draftId)).Targets; if (ReplacementFor is not null && _targets.Any(target => target.Id.Value == ReplacementFor.Value)) _model.TargetId = ReplacementFor.Value.ToString("D"); else if (ReplacementFor is not null) _errorMessage = "That decision is no longer eligible to be replaced."; }
+    private async Task SaveAsync() { if (_isSaving) return; _isSaving = true; _titleError = null; _errorMessage = null; try { var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var subjectId = authentication.User.FindFirst("sub")?.Value; if (string.IsNullOrWhiteSpace(subjectId)) { _errorMessage = "Your signed-in identity could not be established."; return; } var result = await Drafts.CreateAsync(new CreateDraftCommand(_draftId, _operationId, Organization.Id, new MemberId(subjectId), _model.Title, _model.Context, _model.Decision, _model.Consequences, ParseTarget())); if (result.IsSuccess) { Navigation.NavigateTo($"/drafts/{result.Draft!.Id.Value:D}"); return; } if (result.Status == CreateDraftStatus.Invalid && result.TargetValidationCode is null) _titleError = result.ErrorMessage; else _errorMessage = result.ErrorMessage ?? "The draft could not be saved. Your entered content has been preserved."; } finally { _isSaving = false; } }
+    private AdrId? ParseTarget() => Guid.TryParse(_model.TargetId, out var id) && id != Guid.Empty ? new AdrId(id) : null;
+    private sealed class DraftFormModel { public string Title { get; set; } = ""; public string Context { get; set; } = ""; public string Decision { get; set; } = ""; public string Consequences { get; set; } = ""; public string TargetId { get; set; } = ""; }
 }

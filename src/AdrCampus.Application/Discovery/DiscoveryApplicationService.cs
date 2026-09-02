@@ -18,13 +18,20 @@ public sealed class DiscoveryApplicationService(ISharedRecordRepository records,
         try
         {
             var shared = (await records.ListSharedAsync(query.OrganizationId, cancellationToken).ConfigureAwait(false)).Where(record => record.OrganizationId == query.OrganizationId).ToArray();
+            var sharedById = shared.ToDictionary(record => record.Id);
             var matching = shared.Where(record => Includes(query.View, record.Status));
             if (query.Statuses is { Count: > 0 }) matching = matching.Where(record => query.Statuses.Contains(record.Status));
             var matched = matching.ToArray();
-            var identities = matched.SelectMany(record => record.FinalDecision is null ? new[] { record.AuthorId, record.ProposerId } : new[] { record.AuthorId, record.ProposerId, record.FinalDecision.DeciderId }).Distinct().ToArray();
+            var identities = matched.SelectMany(record =>
+            {
+                var actors = new List<MemberId> { record.AuthorId, record.ProposerId };
+                if (record.FinalDecision is not null) actors.Add(record.FinalDecision.DeciderId);
+                if (record.SupersededBy is not null && sharedById.TryGetValue(record.SupersededBy.ReplacementId, out var replacement) && replacement.FinalDecision is not null) actors.Add(replacement.FinalDecision.DeciderId);
+                return actors;
+            }).Distinct().ToArray();
             var resolved = identities.Length == 0 ? new MemberNameResolution(true, new Dictionary<string, string>()) : await names.ResolveAsync(query.OrganizationId, identities, cancellationToken).ConfigureAwait(false);
             if (!resolved.IsAvailable) return DiscoveryQueryResult.Unavailable(query);
-            var candidates = matched.Select(record => new SearchCandidate(record, ToItem(record, resolved))).ToArray();
+            var candidates = matched.Select(record => new SearchCandidate(record, ToItem(record, resolved, sharedById))).ToArray();
             if (search.Phrase.Length > 0) candidates = candidates.Where(candidate => Matches(candidate, search.Phrase)).ToArray();
             var ordered = query.Sort is null && search.Phrase.Length > 0
                 ? candidates.OrderBy(candidate => Rank(candidate, search.Phrase)).ThenByDescending(candidate => candidate.Item.RelevantAtUtc).ThenBy(candidate => candidate.Item.Id.Value).Select(candidate => candidate.Item)
@@ -51,7 +58,13 @@ public sealed class DiscoveryApplicationService(ISharedRecordRepository records,
         {
             var record = await records.GetSharedAsync(organizationId, id, cancellationToken).ConfigureAwait(false);
             if (record is null || record.OrganizationId != organizationId) return SharedDetailResult.NotFound();
-            var actorIds = new[] { record.AuthorId, record.ProposerId, record.FinalDecision?.DeciderId }.Where(actor => actor is not null).Cast<MemberId>().Distinct().ToArray();
+            AdrProposal? supersedingReplacement = null;
+            if (record.SupersededBy is not null)
+            {
+                supersedingReplacement = await records.GetSharedAsync(organizationId, record.SupersededBy.ReplacementId, cancellationToken).ConfigureAwait(false);
+                if (supersedingReplacement?.OrganizationId != organizationId) supersedingReplacement = null;
+            }
+            var actorIds = new[] { record.AuthorId, record.ProposerId, record.FinalDecision?.DeciderId, supersedingReplacement?.FinalDecision?.DeciderId }.Where(actor => actor is not null).Cast<MemberId>().Distinct().ToArray();
             var resolved = await names.ResolveAsync(organizationId, actorIds, cancellationToken).ConfigureAwait(false);
             if (!resolved.IsAvailable) return SharedDetailResult.Unavailable();
             var author = Attribution(record.AuthorId, resolved); var proposer = Attribution(record.ProposerId, resolved);
@@ -66,7 +79,42 @@ public sealed class DiscoveryApplicationService(ISharedRecordRepository records,
                 var type = record.FinalDecision.Outcome == DecisionOutcome.Accepted ? LifecycleEventType.Accepted : LifecycleEventType.Rejected;
                 history.Add(new(type, record.FinalDecision.Outcome == DecisionOutcome.Accepted ? "Accepted as a current decision" : "Rejected", decider!, record.FinalDecision.DecidedAtUtc, record.FinalDecision.Note));
             }
-            return SharedDetailResult.Success(new(record, author, proposer, decider, history.OrderBy(item => item.OccurredAtUtc).ToArray(), []));
+            if (record.SupersededBy is not null && supersedingReplacement?.FinalDecision is not null)
+            {
+                var supersedingDecider = Attribution(supersedingReplacement.FinalDecision.DeciderId, resolved);
+                history.Add(new(LifecycleEventType.Superseded, $"Superseded by {supersedingReplacement.Content.Title.Value}", supersedingDecider, record.SupersededBy.SupersededAtUtc, null));
+            }
+            if (record.Supersedes is not null)
+            {
+                var target = await records.GetSharedAsync(organizationId, record.Supersedes.TargetId, cancellationToken).ConfigureAwait(false);
+                if (target is not null && target.OrganizationId == organizationId && record.FinalDecision is not null)
+                    history.Add(new(LifecycleEventType.Superseded, $"Superseded {target.Content.Title.Value}", decider!, record.Supersedes.SupersededAtUtc, null));
+            }
+            SharedRecordReference? intendedTarget = null;
+            if (record.IntendedSupersessionTargetId is not null)
+            {
+                var target = await records.GetSharedAsync(organizationId, record.IntendedSupersessionTargetId.Value, cancellationToken).ConfigureAwait(false);
+                if (target is not null && target.OrganizationId == organizationId)
+                    intendedTarget = new(target.Id, target.Content.Title, target.Status);
+            }
+            var proposedReplacements = (await records.ListSharedAsync(organizationId, cancellationToken).ConfigureAwait(false))
+                .Where(candidate => candidate.OrganizationId == organizationId && candidate.Status == AdrLifecycleStatus.Proposed && candidate.IntendedSupersessionTargetId == record.Id)
+                .OrderByDescending(candidate => candidate.ProposedAtUtc)
+                .ThenBy(candidate => candidate.Id.Value)
+                .Select(candidate => new SharedRecordReference(candidate.Id, candidate.Content.Title, candidate.Status))
+                .ToArray();
+            var relationships = new List<SharedRecordRelationship>();
+            var unavailableRelationships = 0;
+            if (record.Supersedes is not null)
+            {
+                var target = await records.GetSharedAsync(organizationId, record.Supersedes.TargetId, cancellationToken).ConfigureAwait(false);
+                if (target is not null && target.OrganizationId == organizationId) relationships.Add(new("Supersedes", target.Id, target.Content.Title, record.Supersedes.SupersededAtUtc)); else unavailableRelationships++;
+            }
+            if (record.SupersededBy is not null)
+            {
+                if (supersedingReplacement is not null) relationships.Add(new("Superseded by", supersedingReplacement.Id, supersedingReplacement.Content.Title, record.SupersededBy.SupersededAtUtc)); else unavailableRelationships++;
+            }
+            return SharedDetailResult.Success(new(record, author, proposer, decider, history.OrderBy(item => item.OccurredAtUtc).ToArray(), relationships, intendedTarget, proposedReplacements, unavailableRelationships));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception) { return SharedDetailResult.Unavailable(); }
@@ -79,8 +127,12 @@ public sealed class DiscoveryApplicationService(ISharedRecordRepository records,
     private static bool IsSharedStatus(AdrLifecycleStatus status) => status is AdrLifecycleStatus.Proposed or AdrLifecycleStatus.Accepted or AdrLifecycleStatus.Rejected or AdrLifecycleStatus.Superseded;
     private static bool Includes(SharedRecordView view, AdrLifecycleStatus status) => view switch { SharedRecordView.Current => status == AdrLifecycleStatus.Accepted, SharedRecordView.Proposed => status == AdrLifecycleStatus.Proposed, SharedRecordView.Historical => status is AdrLifecycleStatus.Rejected or AdrLifecycleStatus.Superseded, SharedRecordView.All => IsSharedStatus(status), _ => false };
 
-    private static SharedRecordItem ToItem(AdrProposal record, MemberNameResolution names)
+    private static SharedRecordItem ToItem(AdrProposal record, MemberNameResolution names, IReadOnlyDictionary<AdrId, AdrProposal> sharedById)
     {
+        if (record.SupersededBy is not null && sharedById.TryGetValue(record.SupersededBy.ReplacementId, out var replacement) && replacement.FinalDecision is not null)
+            return new(record.Id, record.Content.Title, record.Status, record.AuthorId, names.For(record.AuthorId), record.ProposerId, names.For(record.ProposerId), replacement.FinalDecision.DeciderId, names.For(replacement.FinalDecision.DeciderId), "Superseding decider", record.SupersededBy.SupersededAtUtc);
+        if (record.SupersededBy is not null)
+            return new(record.Id, record.Content.Title, record.Status, record.AuthorId, names.For(record.AuthorId), record.ProposerId, names.For(record.ProposerId), record.FinalDecision!.DeciderId, names.For(record.FinalDecision.DeciderId), "Supersession actor unavailable", record.SupersededBy.SupersededAtUtc);
         var decision = record.FinalDecision;
         return decision is null
             ? new(record.Id, record.Content.Title, record.Status, record.AuthorId, names.For(record.AuthorId), record.ProposerId, names.For(record.ProposerId), record.ProposerId, names.For(record.ProposerId), "Proposer", record.ProposedAtUtc)
@@ -144,7 +196,8 @@ public enum LifecycleEventType { Created, Proposed, Accepted, Rejected, AuthorRe
 public sealed record MemberAttribution(MemberId Id, string DisplayName, bool IsCurrentMember);
 public sealed record LifecycleHistoryItem(LifecycleEventType Type, string Label, MemberAttribution Actor, DateTimeOffset OccurredAtUtc, string? Note);
 public sealed record SharedRecordRelationship(string Direction, AdrId RelatedId, DraftTitle RelatedTitle, DateTimeOffset OccurredAtUtc);
-public sealed record SharedRecordDetail(AdrProposal Record, MemberAttribution Author, MemberAttribution Proposer, MemberAttribution? Decider, IReadOnlyList<LifecycleHistoryItem> History, IReadOnlyList<SharedRecordRelationship> Relationships);
+public sealed record SharedRecordReference(AdrId Id, DraftTitle Title, AdrLifecycleStatus Status);
+public sealed record SharedRecordDetail(AdrProposal Record, MemberAttribution Author, MemberAttribution Proposer, MemberAttribution? Decider, IReadOnlyList<LifecycleHistoryItem> History, IReadOnlyList<SharedRecordRelationship> Relationships, SharedRecordReference? IntendedSupersessionTarget = null, IReadOnlyList<SharedRecordReference>? ProposedReplacements = null, int UnavailableRelationshipCount = 0);
 public enum SharedDetailStatus { Success, Unauthorized, NotFound, Unavailable }
 public sealed record SharedDetailResult(SharedDetailStatus Status, SharedRecordDetail? Detail)
 {

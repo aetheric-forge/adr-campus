@@ -4,6 +4,8 @@ using AdrCampus.Core.Drafts;
 using AdrCampus.Core.Proposals;
 using AdrCampus.Providers.Drafts.Workbench;
 using AethericForge.Runtime.Providers.Staging.InMemory;
+using AethericForge.Runtime.Abstractions.Interfaces.Staging.Primitives;
+using AethericForge.Runtime.Abstractions.Interfaces.Staging.Providers;
 
 namespace AdrCampus.Providers.Drafts.Workbench.Tests;
 
@@ -58,6 +60,26 @@ public sealed class WorkbenchDraftRepositoryTests
     }
 
     [Fact]
+    public async Task ReplacementTargetSurvivesCreationRevisionAndRecomposition()
+    {
+        var staging = new InMemoryStagingProvider("workbench");
+        var repository = new WorkbenchDraftRepository(staging);
+        var firstTarget = AdrId.New();
+        var secondTarget = AdrId.New();
+        var draft = AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Replace database decision"), Now, firstTarget);
+        await repository.CreateAsync(draft, OperationId.New());
+        var revised = draft.Revise(draft.Content, draft.Version, Now.AddMinutes(1), secondTarget);
+        await repository.SaveRevisionAsync(revised, draft.Version, OperationId.New());
+
+        var recomposed = new WorkbenchDraftRepository(staging);
+        var loaded = await recomposed.GetByAuthorAsync(Organization, Author, draft.Id);
+        var summary = Assert.Single(await recomposed.ListByAuthorAsync(Organization, Author));
+
+        Assert.Equal(secondTarget, loaded!.IntendedSupersessionTargetId);
+        Assert.Equal(secondTarget, summary.IntendedSupersessionTargetId);
+    }
+
+    [Fact]
     public async Task ProposalAtomicallyRemovesDraftAndCreatesSharedRecord()
     {
         var staging = new InMemoryStagingProvider("workbench"); var repository = new WorkbenchDraftRepository(staging); var draft = CompleteDraft(); await repository.CreateAsync(draft, OperationId.New());
@@ -79,6 +101,111 @@ public sealed class WorkbenchDraftRepositoryTests
         var staging = new InMemoryStagingProvider("workbench"); var repository = new WorkbenchDraftRepository(staging); var draft = CompleteDraft(); await repository.CreateAsync(draft, OperationId.New());
         Assert.Equal(ProposalWriteStatus.Conflict, (await repository.ProposeAsync(Organization, Author, draft.Id, 0, OperationId.New(), Now)).Status);
         var operation = OperationId.New(); await repository.ProposeAsync(Organization, Author, draft.Id, 1, operation, Now); Assert.Equal(ProposalWriteStatus.AlreadyApplied, (await new WorkbenchDraftRepository(staging).ProposeAsync(Organization, Author, draft.Id, 1, operation, Now.AddHours(1))).Status);
+    }
+
+    [Fact]
+    public async Task ProposalFreezesReplacementTargetAndSurvivesRecomposition()
+    {
+        var staging = new InMemoryStagingProvider("workbench");
+        var repository = new WorkbenchDraftRepository(staging);
+        var target = await Accepted(repository);
+        var replacement = AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Replace database decision", "Context", "Decision", "Consequences"), Now.AddMinutes(3), target.Id);
+        await repository.CreateAsync(replacement, OperationId.New());
+
+        var result = await repository.ProposeAsync(Organization, Author, replacement.Id, replacement.Version, OperationId.New(), Now.AddMinutes(4));
+        var loaded = await new WorkbenchDraftRepository(staging).GetAsync(Organization, replacement.Id);
+
+        Assert.Equal(ProposalWriteStatus.Proposed, result.Status);
+        Assert.Equal(target.Id, result.Proposal!.IntendedSupersessionTargetId);
+        Assert.Equal(target.Id, loaded!.IntendedSupersessionTargetId);
+        Assert.Equal(AdrLifecycleStatus.Accepted, (await repository.GetAsync(Organization, target.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task ProposalAgainstNonAcceptedTargetLeavesReplacementPrivate()
+    {
+        var repository = new WorkbenchDraftRepository(new InMemoryStagingProvider("workbench"));
+        var target = await Proposed(repository);
+        var replacement = AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Replace database decision", "Context", "Decision", "Consequences"), Now.AddMinutes(2), target.Id);
+        await repository.CreateAsync(replacement, OperationId.New());
+
+        var result = await repository.ProposeAsync(Organization, Author, replacement.Id, replacement.Version, OperationId.New(), Now.AddMinutes(3));
+
+        Assert.Equal(ProposalWriteStatus.TargetNotEligible, result.Status);
+        Assert.NotNull(await repository.GetByAuthorAsync(Organization, Author, replacement.Id));
+        Assert.Null(await repository.GetAsync(Organization, replacement.Id));
+    }
+
+    [Fact]
+    public async Task AcceptingReplacementAtomicallyCompletesReciprocalSupersession()
+    {
+        var repository = new WorkbenchDraftRepository(new InMemoryStagingProvider("workbench"));
+        var target = await Accepted(repository);
+        var replacement = AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Replace database decision", "Context", "Decision", "Consequences"), Now.AddMinutes(3), target.Id);
+        await repository.CreateAsync(replacement, OperationId.New());
+        var proposed = (await repository.ProposeAsync(Organization, Author, replacement.Id, 1, OperationId.New(), Now.AddMinutes(4))).Proposal!;
+
+        var result = await repository.DecideAsync(Organization, proposed.Id, proposed.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Accepted, "", OperationId.New(), Now.AddMinutes(5));
+
+        var acceptedReplacement = await repository.GetAsync(Organization, proposed.Id);
+        var supersededTarget = await repository.GetAsync(Organization, target.Id);
+        Assert.Equal(DecisionWriteStatus.Decided, result.Status);
+        Assert.Equal(AdrLifecycleStatus.Accepted, acceptedReplacement!.Status);
+        Assert.Equal(target.Id, acceptedReplacement.Supersedes!.TargetId);
+        Assert.Equal(AdrLifecycleStatus.Superseded, supersededTarget!.Status);
+        Assert.Equal(acceptedReplacement.Id, supersededTarget.SupersededBy!.ReplacementId);
+        Assert.Equal(result.Record!.FinalDecision!.DecidedAtUtc, acceptedReplacement.Supersedes.SupersededAtUtc);
+        Assert.Equal(acceptedReplacement.Supersedes.SupersededAtUtc, supersededTarget.SupersededBy.SupersededAtUtc);
+    }
+
+    [Fact]
+    public async Task SupersessionRetryReturnsOriginalOutcomeWithoutDuplicateState()
+    {
+        var staging = new InMemoryStagingProvider("workbench"); var repository = new WorkbenchDraftRepository(staging); var target = await Accepted(repository); var proposed = await ProposedReplacement(repository, target, 3); var operation = OperationId.New();
+        var first = await repository.DecideAsync(Organization, proposed.Id, proposed.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Accepted, "", operation, Now.AddMinutes(5));
+        var retry = await new WorkbenchDraftRepository(staging).DecideAsync(Organization, proposed.Id, proposed.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Accepted, "", operation, Now.AddHours(1));
+        Assert.Equal(DecisionWriteStatus.AlreadyApplied, retry.Status); Assert.Equal(first.Record, retry.Record); Assert.Equal(first.Record!.FinalDecision!.DecidedAtUtc, retry.Record!.Supersedes!.SupersededAtUtc);
+    }
+
+    [Fact]
+    public async Task FirstConcurrentReplacementWinsAndOtherRemainsProposed()
+    {
+        var repository = new WorkbenchDraftRepository(new InMemoryStagingProvider("workbench")); var target = await Accepted(repository); var first = await ProposedReplacement(repository, target, 3); var second = await ProposedReplacement(repository, target, 5);
+        var attempts = await Task.WhenAll(
+            repository.DecideAsync(Organization, first.Id, first.ProposedAtUtc, new MemberId("maintainer-1"), DecisionOutcome.Accepted, "", OperationId.New(), Now.AddMinutes(7)),
+            repository.DecideAsync(Organization, second.Id, second.ProposedAtUtc, new MemberId("maintainer-2"), DecisionOutcome.Accepted, "", OperationId.New(), Now.AddMinutes(8)));
+        Assert.Single(attempts, result => result.Status == DecisionWriteStatus.Decided); Assert.Single(attempts, result => result.Status == DecisionWriteStatus.TargetNotAccepted); Assert.Single((await repository.ListAsync(Organization)).Where(proposal => proposal.Id == first.Id || proposal.Id == second.Id));
+    }
+
+    [Fact]
+    public async Task DirectSupersessionChainPreservesBothLinksOnMiddleRecord()
+    {
+        var repository = new WorkbenchDraftRepository(new InMemoryStagingProvider("workbench")); var a = await Accepted(repository); var bProposal = await ProposedReplacement(repository, a, 3); await repository.DecideAsync(Organization, bProposal.Id, bProposal.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Accepted, "", OperationId.New(), Now.AddMinutes(5)); var b = (await repository.GetAsync(Organization, bProposal.Id))!; var cProposal = await ProposedReplacement(repository, b, 6); await repository.DecideAsync(Organization, cProposal.Id, cProposal.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Accepted, "", OperationId.New(), Now.AddMinutes(8)); var middle = (await repository.GetAsync(Organization, b.Id))!;
+        Assert.Equal(AdrLifecycleStatus.Superseded, middle.Status); Assert.Equal(a.Id, middle.Supersedes!.TargetId); Assert.Equal(cProposal.Id, middle.SupersededBy!.ReplacementId);
+    }
+
+    [Fact]
+    public async Task FailedSupersessionSaveLeavesBothRecordsUnchanged()
+    {
+        var staging = new FailNextPutStagingProvider(new InMemoryStagingProvider("workbench")); var repository = new WorkbenchDraftRepository(staging); var target = await Accepted(repository); var replacement = await ProposedReplacement(repository, target, 3); staging.FailNextPut = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repository.DecideAsync(Organization, replacement.Id, replacement.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Accepted, "", OperationId.New(), Now.AddMinutes(5)));
+        Assert.Equal(AdrLifecycleStatus.Proposed, (await repository.GetAsync(Organization, replacement.Id))!.Status); Assert.Equal(AdrLifecycleStatus.Accepted, (await repository.GetAsync(Organization, target.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task RejectingReplacementRetainsIntentAndLeavesTargetAccepted()
+    {
+        var repository = new WorkbenchDraftRepository(new InMemoryStagingProvider("workbench"));
+        var target = await Accepted(repository);
+        var replacement = AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Replace database decision", "Context", "Decision", "Consequences"), Now.AddMinutes(3), target.Id);
+        await repository.CreateAsync(replacement, OperationId.New());
+        var proposed = (await repository.ProposeAsync(Organization, Author, replacement.Id, 1, OperationId.New(), Now.AddMinutes(4))).Proposal!;
+
+        var rejected = await repository.DecideAsync(Organization, proposed.Id, proposed.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Rejected, "Keep the existing decision", OperationId.New(), Now.AddMinutes(5));
+
+        Assert.Equal(AdrLifecycleStatus.Rejected, rejected.Record!.Status);
+        Assert.Equal(target.Id, rejected.Record.IntendedSupersessionTargetId);
+        Assert.Equal(AdrLifecycleStatus.Accepted, (await repository.GetAsync(Organization, target.Id))!.Status);
     }
 
     [Fact]
@@ -129,4 +256,21 @@ public sealed class WorkbenchDraftRepositoryTests
     private static AdrDraft Draft() => AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Choose a database"), Now);
     private static AdrDraft CompleteDraft() => AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Choose a database", "Context", "Decision", "Consequences"), Now);
     private static async Task<AdrProposal> Proposed(WorkbenchDraftRepository repository) { var draft = CompleteDraft(); await repository.CreateAsync(draft, OperationId.New()); return (await repository.ProposeAsync(Organization, Author, draft.Id, draft.Version, OperationId.New(), Now.AddMinutes(1))).Proposal!; }
+    private static async Task<AdrProposal> Accepted(WorkbenchDraftRepository repository) { var proposal = await Proposed(repository); return (await repository.DecideAsync(Organization, proposal.Id, proposal.ProposedAtUtc, new MemberId("maintainer"), DecisionOutcome.Accepted, "", OperationId.New(), Now.AddMinutes(2))).Record!; }
+    private static async Task<AdrProposal> ProposedReplacement(WorkbenchDraftRepository repository, AdrProposal target, int minute) { var draft = AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent($"Replace {target.Content.Title.Value}", "Context", "Decision", "Consequences"), Now.AddMinutes(minute), target.Id); await repository.CreateAsync(draft, OperationId.New()); return (await repository.ProposeAsync(Organization, Author, draft.Id, 1, OperationId.New(), Now.AddMinutes(minute + 1))).Proposal!; }
+
+    private sealed class FailNextPutStagingProvider(IStagingProvider inner) : IStagingProvider
+    {
+        public bool FailNextPut { get; set; }
+        public string Stage => inner.Stage;
+        public Task<IStagingReference> PutAsync(string key, Stream content, IStagingMetadata? metadata = null, CancellationToken ct = default) { if (FailNextPut) { FailNextPut = false; throw new InvalidOperationException("Injected persistence failure."); } return inner.PutAsync(key, content, metadata, ct); }
+        public Task<Stream> OpenReadAsync(IStagingReference reference, CancellationToken ct = default) => inner.OpenReadAsync(reference, ct);
+        public Task<IStagingMetadata?> StatAsync(IStagingReference reference, CancellationToken ct = default) => inner.StatAsync(reference, ct);
+        public Task<bool> ExistsAsync(IStagingReference reference, CancellationToken ct = default) => inner.ExistsAsync(reference, ct);
+        public Task<bool> DeleteAsync(IStagingReference reference, CancellationToken ct = default) => inner.DeleteAsync(reference, ct);
+        public Task<IStagingObject?> GetAsync(IStagingReference reference, CancellationToken ct = default) => inner.GetAsync(reference, ct);
+        public Task PinAsync(IStagingReference reference, CancellationToken ct = default) => inner.PinAsync(reference, ct);
+        public Task UnpinAsync(IStagingReference reference, CancellationToken ct = default) => inner.UnpinAsync(reference, ct);
+        public Task<IStagingLock> AcquireLockAsync(IStagingReference reference, TimeSpan? timeout = null, CancellationToken ct = default) => inner.AcquireLockAsync(reference, timeout, ct);
+    }
 }

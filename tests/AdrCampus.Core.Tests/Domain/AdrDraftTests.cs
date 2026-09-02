@@ -100,4 +100,25 @@ public sealed class AdrDraftTests
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             draft.Revise(new DraftContent("Choose PostgreSQL"), 1, CreatedAt.AddSeconds(-1)));
     }
+
+    [Fact]
+    public void ReplacementTargetIsPrivateDraftStateAndCanBeChangedOrRemoved()
+    {
+        var firstTarget = AdrId.New();
+        var secondTarget = AdrId.New();
+        var draft = AdrDraft.Create(DraftId, OrganizationId, AuthorId, new DraftContent("Replace database decision"), CreatedAt, firstTarget);
+
+        var changed = draft.Revise(draft.Content, 1, CreatedAt.AddMinutes(1), secondTarget);
+        var removed = changed.Revise(changed.Content, 2, CreatedAt.AddMinutes(2));
+
+        Assert.Equal(firstTarget, draft.IntendedSupersessionTargetId);
+        Assert.Equal(secondTarget, changed.IntendedSupersessionTargetId);
+        Assert.Null(removed.IntendedSupersessionTargetId);
+    }
+
+    [Fact]
+    public void ReplacementCannotTargetItself()
+    {
+        Assert.Throws<ArgumentException>(() => AdrDraft.Create(DraftId, OrganizationId, AuthorId, new DraftContent("Replace database decision"), CreatedAt, DraftId));
+    }
 }

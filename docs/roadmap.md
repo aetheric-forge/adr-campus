@@ -29,19 +29,21 @@ Version 0.4 implements proposal and maintainer decision transitions, including v
 
 The detailed release record is in [releases/v0.4.md](releases/v0.4.md).
 
-## Active Release
-
 ### v0.5 — Discover and Understand Decisions
 
-Implement the authorization-aware current, proposed, historical, and all-record views defined by [04-discover-and-understand-decisions.md](stories/04-discover-and-understand-decisions.md), including search, filtering, sorting, pagination, and lifecycle history.
+Version 0.5 implements the authorization-aware Current, Proposed, Historical, and All shared-record views, including search, filtering, sorting, pagination, lifecycle history, and result-context preservation.
 
-The detailed scope is in [releases/v0.5.md](releases/v0.5.md), with implementation sequencing in [backlog/v0.5.md](backlog/v0.5.md).
+The detailed release record is in [releases/v0.5.md](releases/v0.5.md).
 
-## Planned Workflow Releases
+## Active Release
 
 ### v0.6 — Supersede a Decision
 
 Implement replacement decisions, atomic supersession, and navigable decision history as defined by [05-supersede-a-decision.md](stories/05-supersede-a-decision.md).
+
+The detailed scope is in [releases/v0.6.md](releases/v0.6.md), with implementation sequencing in [backlog/v0.6.md](backlog/v0.6.md).
+
+## Planned Workflow Releases
 
 ### v0.7 — Complete Organization Administration
 
