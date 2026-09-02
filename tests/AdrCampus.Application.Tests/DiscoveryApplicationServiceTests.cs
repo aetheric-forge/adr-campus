@@ -258,6 +258,25 @@ public sealed class DiscoveryApplicationServiceTests
     }
 
     [Fact]
+    public async Task SupersededDetailEndsHistoryWithSupersedingDecision()
+    {
+        var target = Proposed(1, title: "Existing decision").Decide(DecisionOutcome.Accepted, new MemberId("first-decider"), "", Now.AddMinutes(2));
+        var replacement = (Proposed(2, title: "Replacement decision") with { IntendedSupersessionTargetId = target.Id })
+            .Decide(DecisionOutcome.Accepted, new MemberId("replacement-decider"), "", Now.AddMinutes(4))
+            .CompleteSupersessionOf(target.Id, Now.AddMinutes(4));
+        target = target.MarkSupersededBy(replacement.Id, Now.AddMinutes(4));
+        var names = new Names(new Dictionary<string, string> { ["author"] = "Author", ["proposer"] = "Proposer", ["first-decider"] = "First Decider", ["replacement-decider"] = "Replacement Decider" });
+
+        var result = await new DiscoveryApplicationService(new Repository([target, replacement]), new Authority(true), names).GetDetailAsync(Organization, Member, target.Id);
+
+        var last = result.Detail!.History[^1];
+        Assert.Equal(LifecycleEventType.Superseded, last.Type);
+        Assert.Equal("Superseded by Replacement decision", last.Label);
+        Assert.Equal("Replacement Decider", last.Actor.DisplayName);
+        Assert.Equal(Now.AddMinutes(4), last.OccurredAtUtc);
+    }
+
+    [Fact]
     public async Task DetailUsesStableIdentifierWhenActorIsNoLongerInDirectory()
     {
         var record = Proposed(1, author: "former-author-id");

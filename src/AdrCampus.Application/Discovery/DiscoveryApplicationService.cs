@@ -51,7 +51,13 @@ public sealed class DiscoveryApplicationService(ISharedRecordRepository records,
         {
             var record = await records.GetSharedAsync(organizationId, id, cancellationToken).ConfigureAwait(false);
             if (record is null || record.OrganizationId != organizationId) return SharedDetailResult.NotFound();
-            var actorIds = new[] { record.AuthorId, record.ProposerId, record.FinalDecision?.DeciderId }.Where(actor => actor is not null).Cast<MemberId>().Distinct().ToArray();
+            AdrProposal? supersedingReplacement = null;
+            if (record.SupersededBy is not null)
+            {
+                supersedingReplacement = await records.GetSharedAsync(organizationId, record.SupersededBy.ReplacementId, cancellationToken).ConfigureAwait(false);
+                if (supersedingReplacement?.OrganizationId != organizationId) supersedingReplacement = null;
+            }
+            var actorIds = new[] { record.AuthorId, record.ProposerId, record.FinalDecision?.DeciderId, supersedingReplacement?.FinalDecision?.DeciderId }.Where(actor => actor is not null).Cast<MemberId>().Distinct().ToArray();
             var resolved = await names.ResolveAsync(organizationId, actorIds, cancellationToken).ConfigureAwait(false);
             if (!resolved.IsAvailable) return SharedDetailResult.Unavailable();
             var author = Attribution(record.AuthorId, resolved); var proposer = Attribution(record.ProposerId, resolved);
@@ -65,6 +71,11 @@ public sealed class DiscoveryApplicationService(ISharedRecordRepository records,
             {
                 var type = record.FinalDecision.Outcome == DecisionOutcome.Accepted ? LifecycleEventType.Accepted : LifecycleEventType.Rejected;
                 history.Add(new(type, record.FinalDecision.Outcome == DecisionOutcome.Accepted ? "Accepted as a current decision" : "Rejected", decider!, record.FinalDecision.DecidedAtUtc, record.FinalDecision.Note));
+            }
+            if (record.SupersededBy is not null && supersedingReplacement?.FinalDecision is not null)
+            {
+                var supersedingDecider = Attribution(supersedingReplacement.FinalDecision.DeciderId, resolved);
+                history.Add(new(LifecycleEventType.Superseded, $"Superseded by {supersedingReplacement.Content.Title.Value}", supersedingDecider, record.SupersededBy.SupersededAtUtc, null));
             }
             SharedRecordReference? intendedTarget = null;
             if (record.IntendedSupersessionTargetId is not null)

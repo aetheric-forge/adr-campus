@@ -47,9 +47,13 @@ public sealed record AdrProposal(
     DateTimeOffset ProposedAtUtc,
     long SourceDraftVersion,
     AdrDecision? FinalDecision = null,
-    AdrId? IntendedSupersessionTargetId = null)
+    AdrId? IntendedSupersessionTargetId = null,
+    SupersedesRelationship? Supersedes = null,
+    SupersededByRelationship? SupersededBy = null)
 {
-    public AdrLifecycleStatus Status => FinalDecision?.Outcome == DecisionOutcome.Accepted
+    public AdrLifecycleStatus Status => SupersededBy is not null
+        ? AdrLifecycleStatus.Superseded
+        : FinalDecision?.Outcome == DecisionOutcome.Accepted
         ? AdrLifecycleStatus.Accepted
         : FinalDecision?.Outcome == DecisionOutcome.Rejected
             ? AdrLifecycleStatus.Rejected
@@ -62,10 +66,29 @@ public sealed record AdrProposal(
         if (!validation.IsValid) throw new ArgumentException("The decision note is invalid.", nameof(note));
         return this with { FinalDecision = new AdrDecision(outcome, deciderId, decidedAtUtc, validation.Note!) };
     }
+
+    public AdrProposal CompleteSupersessionOf(AdrId targetId, DateTimeOffset supersededAtUtc)
+    {
+        if (FinalDecision?.Outcome != DecisionOutcome.Accepted) throw new InvalidOperationException("Only an accepted replacement can complete supersession.");
+        if (IntendedSupersessionTargetId != targetId) throw new InvalidOperationException("The completed target must match the frozen intended target.");
+        if (targetId == Id) throw new InvalidOperationException("An ADR cannot supersede itself.");
+        if (Supersedes is not null) throw new InvalidOperationException("The ADR already supersedes another decision.");
+        if (FinalDecision.DecidedAtUtc != supersededAtUtc) throw new InvalidOperationException("Supersession time must equal decision time.");
+        return this with { Supersedes = new(targetId, supersededAtUtc) };
+    }
+
+    public AdrProposal MarkSupersededBy(AdrId replacementId, DateTimeOffset supersededAtUtc)
+    {
+        if (Status != AdrLifecycleStatus.Accepted) throw new InvalidOperationException("Only an accepted ADR can be superseded.");
+        if (replacementId == Id) throw new InvalidOperationException("An ADR cannot be superseded by itself.");
+        return this with { SupersededBy = new(replacementId, supersededAtUtc) };
+    }
 }
 
 public enum DecisionOutcome { Accepted, Rejected }
 public sealed record AdrDecision(DecisionOutcome Outcome, MemberId DeciderId, DateTimeOffset DecidedAtUtc, string Note);
+public sealed record SupersedesRelationship(AdrId TargetId, DateTimeOffset SupersededAtUtc);
+public sealed record SupersededByRelationship(AdrId ReplacementId, DateTimeOffset SupersededAtUtc);
 public sealed record DecisionNoteValidationError(DecisionNoteValidationCode Code, string Message);
 public enum DecisionNoteValidationCode { Required, TooLong, RequiresLetterOrNumber, ContainsControlCharacter }
 public sealed record DecisionNoteValidationResult(string? Note, IReadOnlyList<DecisionNoteValidationError> Errors)

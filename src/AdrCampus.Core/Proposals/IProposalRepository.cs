@@ -15,7 +15,7 @@ public sealed record ProposalWriteResult(ProposalWriteStatus Status, AdrProposal
 {
     public bool IsSuccess => Status is ProposalWriteStatus.Proposed or ProposalWriteStatus.AlreadyApplied;
 }
-public enum DecisionWriteStatus { Decided, AlreadyApplied, Invalid, SupersessionPending, UnauthorizedOrNotFound, Conflict, OperationMismatch }
+public enum DecisionWriteStatus { Decided, AlreadyApplied, Invalid, TargetNotAccepted, InvalidRelationship, UnauthorizedOrNotFound, Conflict, OperationMismatch }
 public sealed record DecisionWriteResult(DecisionWriteStatus Status, AdrProposal? Record, IReadOnlyList<DecisionNoteValidationError> Errors)
 {
     public bool IsSuccess => Status is DecisionWriteStatus.Decided or DecisionWriteStatus.AlreadyApplied;

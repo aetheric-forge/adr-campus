@@ -114,14 +114,37 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
         if (index < 0) return new(DecisionWriteStatus.UnauthorizedOrNotFound, null, []);
         var current = ToDomain(catalog.Proposals[index]);
         if (current.ProposedAtUtc != expectedProposedAtUtc || current.FinalDecision is not null) return new(DecisionWriteStatus.Conflict, current, []);
-        if (outcome == DecisionOutcome.Accepted && current.IntendedSupersessionTargetId is not null)
-            return new(DecisionWriteStatus.SupersessionPending, current, []);
         var decided = current.Decide(outcome, deciderId, validation.Note!, decidedAtUtc);
+        if (outcome == DecisionOutcome.Accepted && current.IntendedSupersessionTargetId is not null)
+        {
+            var targetId = current.IntendedSupersessionTargetId.Value;
+            var targetIndex = catalog.Proposals.FindIndex(record => record.OrganizationId == organizationId.Value && record.Id == targetId.Value);
+            if (targetIndex < 0) return new(DecisionWriteStatus.TargetNotAccepted, current, []);
+            var target = ToDomain(catalog.Proposals[targetIndex]);
+            if (target.Status != AdrLifecycleStatus.Accepted) return new(DecisionWriteStatus.TargetNotAccepted, current, []);
+            if (WouldCreateCycle(catalog, organizationId, current.Id, target.Id)) return new(DecisionWriteStatus.InvalidRelationship, current, []);
+            decided = decided.CompleteSupersessionOf(target.Id, decidedAtUtc);
+            catalog.Proposals[targetIndex] = FromDomain(target.MarkSupersededBy(decided.Id, decidedAtUtc));
+        }
         var record = FromDomain(decided);
         catalog.Proposals[index] = record;
         catalog.DecisionOperations.Add(new(operationId.Value, organizationId.Value, proposalId.Value, expectedProposedAtUtc, deciderId.Value, outcome, note, record));
         await SaveAsync(catalog, cancellationToken).ConfigureAwait(false);
         return new(DecisionWriteStatus.Decided, decided, []);
+    }
+
+    private static bool WouldCreateCycle(Catalog catalog, OrganizationId organizationId, AdrId replacementId, AdrId targetId)
+    {
+        if (replacementId == targetId) return true;
+        var visited = new HashSet<Guid>();
+        AdrId? currentId = targetId;
+        while (currentId is not null && visited.Add(currentId.Value.Value))
+        {
+            if (currentId == replacementId) return true;
+            var record = catalog.Proposals.FirstOrDefault(candidate => candidate.OrganizationId == organizationId.Value && candidate.Id == currentId.Value.Value);
+            currentId = record?.SupersedesTargetId is null ? null : new AdrId(record.SupersedesTargetId.Value);
+        }
+        return currentId is not null;
     }
 
     public async Task<IReadOnlyList<DecidedSummary>> ListDecidedAsync(OrganizationId organizationId, DecisionOutcome outcome, CancellationToken cancellationToken = default)
@@ -172,12 +195,12 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
     private static DraftRecord FromDomain(AdrDraft d) => new(d.Id.Value, d.OrganizationId.Value, d.AuthorId.Value, d.Content.Title.Value, d.Content.Context, d.Content.Decision, d.Content.Consequences, d.CreatedAtUtc, d.ModifiedAtUtc, d.Version, d.IntendedSupersessionTargetId?.Value);
     private static AdrDraft ToDomain(DraftRecord d) => AdrDraft.Restore(new AdrId(d.Id), new OrganizationId(d.OrganizationId), new MemberId(d.AuthorId), new DraftContent(d.Title, d.Context, d.Decision, d.Consequences), d.CreatedAtUtc, d.ModifiedAtUtc, d.Version, ToAdrId(d.IntendedSupersessionTargetId));
     private static AdrId? ToAdrId(Guid? value) => value is null ? null : new AdrId(value.Value);
-    private static ProposalRecord FromDomain(AdrProposal p) => new(p.Id.Value, p.OrganizationId.Value, p.AuthorId.Value, p.ProposerId.Value, p.Content.Title.Value, p.Content.Context, p.Content.Decision, p.Content.Consequences, p.CreatedAtUtc, p.ProposedAtUtc, p.SourceDraftVersion, p.FinalDecision is null ? null : new(p.FinalDecision.Outcome, p.FinalDecision.DeciderId.Value, p.FinalDecision.DecidedAtUtc, p.FinalDecision.Note), p.IntendedSupersessionTargetId?.Value);
-    private static AdrProposal ToDomain(ProposalRecord p) => new(new AdrId(p.Id), new OrganizationId(p.OrganizationId), new MemberId(p.AuthorId), new MemberId(p.ProposerId), new ProposalContent(new DraftTitle(p.Title), p.Context, p.Decision, p.Consequences), p.CreatedAtUtc, p.ProposedAtUtc, p.SourceDraftVersion, p.FinalDecision is null ? null : new(p.FinalDecision.Outcome, new MemberId(p.FinalDecision.DeciderId), p.FinalDecision.DecidedAtUtc, p.FinalDecision.Note), ToAdrId(p.IntendedSupersessionTargetId));
+    private static ProposalRecord FromDomain(AdrProposal p) => new(p.Id.Value, p.OrganizationId.Value, p.AuthorId.Value, p.ProposerId.Value, p.Content.Title.Value, p.Content.Context, p.Content.Decision, p.Content.Consequences, p.CreatedAtUtc, p.ProposedAtUtc, p.SourceDraftVersion, p.FinalDecision is null ? null : new(p.FinalDecision.Outcome, p.FinalDecision.DeciderId.Value, p.FinalDecision.DecidedAtUtc, p.FinalDecision.Note), p.IntendedSupersessionTargetId?.Value, p.Supersedes?.TargetId.Value, p.Supersedes?.SupersededAtUtc, p.SupersededBy?.ReplacementId.Value, p.SupersededBy?.SupersededAtUtc);
+    private static AdrProposal ToDomain(ProposalRecord p) => new(new AdrId(p.Id), new OrganizationId(p.OrganizationId), new MemberId(p.AuthorId), new MemberId(p.ProposerId), new ProposalContent(new DraftTitle(p.Title), p.Context, p.Decision, p.Consequences), p.CreatedAtUtc, p.ProposedAtUtc, p.SourceDraftVersion, p.FinalDecision is null ? null : new(p.FinalDecision.Outcome, new MemberId(p.FinalDecision.DeciderId), p.FinalDecision.DecidedAtUtc, p.FinalDecision.Note), ToAdrId(p.IntendedSupersessionTargetId), p.SupersedesTargetId is null || p.SupersedesAtUtc is null ? null : new(new AdrId(p.SupersedesTargetId.Value), p.SupersedesAtUtc.Value), p.SupersededByReplacementId is null || p.SupersededByAtUtc is null ? null : new(new AdrId(p.SupersededByReplacementId.Value), p.SupersededByAtUtc.Value));
     public sealed class Catalog { public List<DraftRecord> Drafts { get; set; } = []; public List<OperationRecord> Operations { get; set; } = []; public List<ProposalRecord> Proposals { get; set; } = []; public List<ProposalOperationRecord> ProposalOperations { get; set; } = []; public List<DecisionOperationRecord> DecisionOperations { get; set; } = []; }
     public sealed record DraftRecord(Guid Id, string OrganizationId, string AuthorId, string Title, string Context, string Decision, string Consequences, DateTimeOffset CreatedAtUtc, DateTimeOffset ModifiedAtUtc, long Version, Guid? IntendedSupersessionTargetId = null);
     public sealed record OperationRecord(Guid Id, string Kind, DraftRecord Draft, long? ExpectedVersion);
-    public sealed record ProposalRecord(Guid Id, string OrganizationId, string AuthorId, string ProposerId, string Title, string Context, string Decision, string Consequences, DateTimeOffset CreatedAtUtc, DateTimeOffset ProposedAtUtc, long SourceDraftVersion, DecisionRecord? FinalDecision = null, Guid? IntendedSupersessionTargetId = null);
+    public sealed record ProposalRecord(Guid Id, string OrganizationId, string AuthorId, string ProposerId, string Title, string Context, string Decision, string Consequences, DateTimeOffset CreatedAtUtc, DateTimeOffset ProposedAtUtc, long SourceDraftVersion, DecisionRecord? FinalDecision = null, Guid? IntendedSupersessionTargetId = null, Guid? SupersedesTargetId = null, DateTimeOffset? SupersedesAtUtc = null, Guid? SupersededByReplacementId = null, DateTimeOffset? SupersededByAtUtc = null);
     public sealed record DecisionRecord(DecisionOutcome Outcome, string DeciderId, DateTimeOffset DecidedAtUtc, string Note);
     public sealed record ProposalOperationRecord(Guid Id, string OrganizationId, string AuthorId, Guid DraftId, long ExpectedVersion, ProposalRecord Proposal);
     public sealed record DecisionOperationRecord(Guid Id, string OrganizationId, Guid ProposalId, DateTimeOffset ExpectedProposedAtUtc, string DeciderId, DecisionOutcome Outcome, string Note, ProposalRecord Record);
