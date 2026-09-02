@@ -83,6 +83,8 @@ h1:focus { outline: none; }
 .record-metadata { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .record-metadata div { display: flex; flex-direction: column; gap: 3px; }
 .record-metadata small { color: var(--muted); }
+.relationship-list { display: grid; gap: 10px; }
+.relationship-list a { width: fit-content; }
 .lifecycle-history { margin-top: 24px; padding: 26px 28px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
 .lifecycle-history ol { margin: 0; padding: 0; list-style: none; }
 .lifecycle-history li { position: relative; padding: 0 0 22px 28px; }
