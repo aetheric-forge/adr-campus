@@ -35,15 +35,13 @@ Version 0.5 implements the authorization-aware Current, Proposed, Historical, an
 
 The detailed release record is in [releases/v0.5.md](releases/v0.5.md).
 
-## Active Release
-
 ### v0.6 — Supersede a Decision
 
-Implement replacement decisions, atomic supersession, and navigable decision history as defined by [05-supersede-a-decision.md](stories/05-supersede-a-decision.md).
+Version 0.6 implements replacement drafting, immutable intended-target metadata, atomic and idempotent supersession, deterministic handling of competing replacements, and navigable lifecycle history across Current and Historical discovery.
 
-The detailed scope is in [releases/v0.6.md](releases/v0.6.md), with implementation sequencing in [backlog/v0.6.md](backlog/v0.6.md).
+The detailed release record is in [releases/v0.6.md](releases/v0.6.md), with implementation sequencing and QA coverage in [backlog/v0.6.md](backlog/v0.6.md).
 
-## Planned Workflow Releases
+## Active Release
 
 ### v0.7 — Complete Organization Administration
 
