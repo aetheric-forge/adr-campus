@@ -47,6 +47,8 @@ The detailed release record is in [releases/v0.6.md](releases/v0.6.md), with imp
 
 Complete the remaining application-owned administration behavior from [06-administer-the-organization.md](stories/06-administer-the-organization.md), including membership projections, draft recovery, organization settings, administration history, expiry, and maintenance processing.
 
+The detailed scope is in [releases/v0.7.md](releases/v0.7.md), with implementation sequencing in [backlog/v0.7.md](backlog/v0.7.md).
+
 ## First Complete Release
 
 The first complete release is reached when the six documented journeys work together end to end and satisfy the outcome in [stories/overview.md](stories/overview.md). Planned version boundaries may be adjusted when implementation reveals a safer or more coherent slice, but story acceptance criteria remain authoritative.
