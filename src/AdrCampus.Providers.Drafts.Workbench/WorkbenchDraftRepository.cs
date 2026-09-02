@@ -36,7 +36,7 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
         var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
         return catalog.Drafts.Where(d => d.OrganizationId == organizationId.Value && d.AuthorId == authorId.Value)
             .OrderByDescending(d => d.ModifiedAtUtc).ThenBy(d => d.Id)
-            .Select(d => new DraftSummary(new AdrId(d.Id), new DraftTitle(d.Title), d.CreatedAtUtc, d.ModifiedAtUtc, d.Version)).ToArray();
+            .Select(d => new DraftSummary(new AdrId(d.Id), new DraftTitle(d.Title), d.CreatedAtUtc, d.ModifiedAtUtc, d.Version, ToAdrId(d.IntendedSupersessionTargetId))).ToArray();
     }
 
     public Task<DraftWriteResult> SaveRevisionAsync(AdrDraft draft, long expectedPersistedVersion, OperationId operationId, CancellationToken cancellationToken = default) =>
@@ -161,12 +161,13 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
         await staging.PutAsync(CatalogKey, stream, new StagingMetadata(contentType: "application/json", lastModifiedUtc: DateTimeOffset.UtcNow), cancellationToken).ConfigureAwait(false);
     }
 
-    private static DraftRecord FromDomain(AdrDraft d) => new(d.Id.Value, d.OrganizationId.Value, d.AuthorId.Value, d.Content.Title.Value, d.Content.Context, d.Content.Decision, d.Content.Consequences, d.CreatedAtUtc, d.ModifiedAtUtc, d.Version);
-    private static AdrDraft ToDomain(DraftRecord d) => AdrDraft.Restore(new AdrId(d.Id), new OrganizationId(d.OrganizationId), new MemberId(d.AuthorId), new DraftContent(d.Title, d.Context, d.Decision, d.Consequences), d.CreatedAtUtc, d.ModifiedAtUtc, d.Version);
+    private static DraftRecord FromDomain(AdrDraft d) => new(d.Id.Value, d.OrganizationId.Value, d.AuthorId.Value, d.Content.Title.Value, d.Content.Context, d.Content.Decision, d.Content.Consequences, d.CreatedAtUtc, d.ModifiedAtUtc, d.Version, d.IntendedSupersessionTargetId?.Value);
+    private static AdrDraft ToDomain(DraftRecord d) => AdrDraft.Restore(new AdrId(d.Id), new OrganizationId(d.OrganizationId), new MemberId(d.AuthorId), new DraftContent(d.Title, d.Context, d.Decision, d.Consequences), d.CreatedAtUtc, d.ModifiedAtUtc, d.Version, ToAdrId(d.IntendedSupersessionTargetId));
+    private static AdrId? ToAdrId(Guid? value) => value is null ? null : new AdrId(value.Value);
     private static ProposalRecord FromDomain(AdrProposal p) => new(p.Id.Value, p.OrganizationId.Value, p.AuthorId.Value, p.ProposerId.Value, p.Content.Title.Value, p.Content.Context, p.Content.Decision, p.Content.Consequences, p.CreatedAtUtc, p.ProposedAtUtc, p.SourceDraftVersion, p.FinalDecision is null ? null : new(p.FinalDecision.Outcome, p.FinalDecision.DeciderId.Value, p.FinalDecision.DecidedAtUtc, p.FinalDecision.Note));
     private static AdrProposal ToDomain(ProposalRecord p) => new(new AdrId(p.Id), new OrganizationId(p.OrganizationId), new MemberId(p.AuthorId), new MemberId(p.ProposerId), new ProposalContent(new DraftTitle(p.Title), p.Context, p.Decision, p.Consequences), p.CreatedAtUtc, p.ProposedAtUtc, p.SourceDraftVersion, p.FinalDecision is null ? null : new(p.FinalDecision.Outcome, new MemberId(p.FinalDecision.DeciderId), p.FinalDecision.DecidedAtUtc, p.FinalDecision.Note));
     public sealed class Catalog { public List<DraftRecord> Drafts { get; set; } = []; public List<OperationRecord> Operations { get; set; } = []; public List<ProposalRecord> Proposals { get; set; } = []; public List<ProposalOperationRecord> ProposalOperations { get; set; } = []; public List<DecisionOperationRecord> DecisionOperations { get; set; } = []; }
-    public sealed record DraftRecord(Guid Id, string OrganizationId, string AuthorId, string Title, string Context, string Decision, string Consequences, DateTimeOffset CreatedAtUtc, DateTimeOffset ModifiedAtUtc, long Version);
+    public sealed record DraftRecord(Guid Id, string OrganizationId, string AuthorId, string Title, string Context, string Decision, string Consequences, DateTimeOffset CreatedAtUtc, DateTimeOffset ModifiedAtUtc, long Version, Guid? IntendedSupersessionTargetId = null);
     public sealed record OperationRecord(Guid Id, string Kind, DraftRecord Draft, long? ExpectedVersion);
     public sealed record ProposalRecord(Guid Id, string OrganizationId, string AuthorId, string ProposerId, string Title, string Context, string Decision, string Consequences, DateTimeOffset CreatedAtUtc, DateTimeOffset ProposedAtUtc, long SourceDraftVersion, DecisionRecord? FinalDecision = null);
     public sealed record DecisionRecord(DecisionOutcome Outcome, string DeciderId, DateTimeOffset DecidedAtUtc, string Note);

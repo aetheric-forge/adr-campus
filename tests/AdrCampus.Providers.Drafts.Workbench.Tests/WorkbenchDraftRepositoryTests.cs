@@ -58,6 +58,26 @@ public sealed class WorkbenchDraftRepositoryTests
     }
 
     [Fact]
+    public async Task ReplacementTargetSurvivesCreationRevisionAndRecomposition()
+    {
+        var staging = new InMemoryStagingProvider("workbench");
+        var repository = new WorkbenchDraftRepository(staging);
+        var firstTarget = AdrId.New();
+        var secondTarget = AdrId.New();
+        var draft = AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Replace database decision"), Now, firstTarget);
+        await repository.CreateAsync(draft, OperationId.New());
+        var revised = draft.Revise(draft.Content, draft.Version, Now.AddMinutes(1), secondTarget);
+        await repository.SaveRevisionAsync(revised, draft.Version, OperationId.New());
+
+        var recomposed = new WorkbenchDraftRepository(staging);
+        var loaded = await recomposed.GetByAuthorAsync(Organization, Author, draft.Id);
+        var summary = Assert.Single(await recomposed.ListByAuthorAsync(Organization, Author));
+
+        Assert.Equal(secondTarget, loaded!.IntendedSupersessionTargetId);
+        Assert.Equal(secondTarget, summary.IntendedSupersessionTargetId);
+    }
+
+    [Fact]
     public async Task ProposalAtomicallyRemovesDraftAndCreatesSharedRecord()
     {
         var staging = new InMemoryStagingProvider("workbench"); var repository = new WorkbenchDraftRepository(staging); var draft = CompleteDraft(); await repository.CreateAsync(draft, OperationId.New());

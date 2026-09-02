@@ -24,13 +24,13 @@ h1:focus { outline: none; }
 .placeholder-panel { padding: 34px; }
 .placeholder-panel p { margin-bottom: 0; }
 .toolbar { margin-bottom: 18px; display: flex; gap: 10px; }
-.search-input, .form-placeholder input, .form-placeholder textarea { width: 100%; border: 1px solid #cfd3cd; border-radius: 7px; background: #fff; color: var(--ink); font: inherit; }
+.search-input, .form-placeholder input, .form-placeholder textarea, .form-placeholder select { width: 100%; border: 1px solid #cfd3cd; border-radius: 7px; background: #fff; color: var(--ink); font: inherit; }
 .search-input { max-width: 430px; min-height: 42px; padding: 10px 13px; }
 .form-placeholder { max-width: 820px; padding: 32px; display: grid; gap: 10px; }
 .form-placeholder label { margin-top: 10px; font-size: .86rem; font-weight: 750; }
 .form-placeholder label:first-child { margin-top: 0; }
 .form-placeholder label span { color: #777e79; font-size: .72rem; font-weight: 500; }
-.form-placeholder input, .form-placeholder textarea { padding: 12px 13px; resize: vertical; }
+.form-placeholder input, .form-placeholder textarea, .form-placeholder select { padding: 12px 13px; resize: vertical; }
 .form-message { margin-bottom: 6px; padding: 12px 14px; border-radius: 7px; }
 .form-error { border-color: #d7aaa4; background: #fff4f2; color: #7b2921; }
 .field-error { margin: -4px 0 2px; color: #a33429; font-size: .82rem; }

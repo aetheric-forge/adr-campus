@@ -32,6 +32,7 @@ public sealed record AdrDraft
         OrganizationId organizationId,
         MemberId authorId,
         DraftContent content,
+        AdrId? intendedSupersessionTargetId,
         DateTimeOffset createdAtUtc,
         DateTimeOffset modifiedAtUtc,
         long version)
@@ -40,6 +41,7 @@ public sealed record AdrDraft
         OrganizationId = organizationId;
         AuthorId = authorId;
         Content = content;
+        IntendedSupersessionTargetId = intendedSupersessionTargetId;
         CreatedAtUtc = createdAtUtc;
         ModifiedAtUtc = modifiedAtUtc;
         Version = version;
@@ -49,6 +51,7 @@ public sealed record AdrDraft
     public OrganizationId OrganizationId { get; }
     public MemberId AuthorId { get; }
     public DraftContent Content { get; }
+    public AdrId? IntendedSupersessionTargetId { get; }
     public AdrLifecycleStatus Status => AdrLifecycleStatus.Draft;
     public DateTimeOffset CreatedAtUtc { get; }
     public DateTimeOffset ModifiedAtUtc { get; }
@@ -59,22 +62,28 @@ public sealed record AdrDraft
         OrganizationId organizationId,
         MemberId authorId,
         DraftContent content,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        AdrId? intendedSupersessionTargetId = null)
     {
         ArgumentNullException.ThrowIfNull(organizationId);
         ArgumentNullException.ThrowIfNull(authorId);
         ArgumentNullException.ThrowIfNull(content);
-        return new AdrDraft(id, organizationId, authorId, content, nowUtc, nowUtc, 1);
+        if (intendedSupersessionTargetId == id)
+        {
+            throw new ArgumentException("An ADR cannot target itself for supersession.", nameof(intendedSupersessionTargetId));
+        }
+        return new AdrDraft(id, organizationId, authorId, content, intendedSupersessionTargetId, nowUtc, nowUtc, 1);
     }
 
-    public static AdrDraft Restore(AdrId id, OrganizationId organizationId, MemberId authorId, DraftContent content, DateTimeOffset createdAtUtc, DateTimeOffset modifiedAtUtc, long version)
+    public static AdrDraft Restore(AdrId id, OrganizationId organizationId, MemberId authorId, DraftContent content, DateTimeOffset createdAtUtc, DateTimeOffset modifiedAtUtc, long version, AdrId? intendedSupersessionTargetId = null)
     {
         if (version < 1) throw new ArgumentOutOfRangeException(nameof(version));
         if (modifiedAtUtc < createdAtUtc) throw new ArgumentOutOfRangeException(nameof(modifiedAtUtc));
-        return new AdrDraft(id, organizationId, authorId, content, createdAtUtc, modifiedAtUtc, version);
+        if (intendedSupersessionTargetId == id) throw new ArgumentException("An ADR cannot target itself for supersession.", nameof(intendedSupersessionTargetId));
+        return new AdrDraft(id, organizationId, authorId, content, intendedSupersessionTargetId, createdAtUtc, modifiedAtUtc, version);
     }
 
-    public AdrDraft Revise(DraftContent content, long expectedVersion, DateTimeOffset nowUtc)
+    public AdrDraft Revise(DraftContent content, long expectedVersion, DateTimeOffset nowUtc, AdrId? intendedSupersessionTargetId = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         if (expectedVersion != Version)
@@ -85,12 +94,17 @@ public sealed record AdrDraft
         {
             throw new ArgumentOutOfRangeException(nameof(nowUtc), "Modification time cannot move backwards.");
         }
+        if (intendedSupersessionTargetId == Id)
+        {
+            throw new ArgumentException("An ADR cannot target itself for supersession.", nameof(intendedSupersessionTargetId));
+        }
 
         return new AdrDraft(
             Id,
             OrganizationId,
             AuthorId,
             content,
+            intendedSupersessionTargetId,
             CreatedAtUtc,
             nowUtc,
             checked(Version + 1));

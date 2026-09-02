@@ -36,7 +36,8 @@ public sealed record DraftSummary(
     DraftTitle Title,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset ModifiedAtUtc,
-    long Version);
+    long Version,
+    AdrId? IntendedSupersessionTargetId = null);
 
 public enum DraftWriteStatus
 {
