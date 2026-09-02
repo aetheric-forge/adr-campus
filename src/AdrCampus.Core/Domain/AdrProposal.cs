@@ -3,7 +3,7 @@ namespace AdrCampus.Core.Domain;
 public sealed record ProposalContent(DraftTitle Title, string Context, string Decision, string Consequences);
 
 public sealed record ProposalValidationError(string Field, ProposalValidationCode Code, string Message);
-public enum ProposalValidationCode { Required, TooLong, RequiresLetterOrNumber, ContainsControlCharacter }
+public enum ProposalValidationCode { Required, TooLong, RequiresLetterOrNumber, ContainsControlCharacter, TargetNotEligible }
 public sealed record ProposalValidationResult(ProposalContent? Content, IReadOnlyList<ProposalValidationError> Errors)
 {
     public bool IsValid => Content is not null && Errors.Count == 0;
@@ -46,7 +46,8 @@ public sealed record AdrProposal(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset ProposedAtUtc,
     long SourceDraftVersion,
-    AdrDecision? FinalDecision = null)
+    AdrDecision? FinalDecision = null,
+    AdrId? IntendedSupersessionTargetId = null)
 {
     public AdrLifecycleStatus Status => FinalDecision?.Outcome == DecisionOutcome.Accepted
         ? AdrLifecycleStatus.Accepted

@@ -10,12 +10,12 @@ public interface IProposalRepository
 }
 public sealed record ProposalSummary(AdrId Id, DraftTitle Title, MemberId AuthorId, MemberId ProposerId, DateTimeOffset ProposedAtUtc);
 public sealed record DecidedSummary(AdrId Id, DraftTitle Title, MemberId AuthorId, AdrDecision Decision);
-public enum ProposalWriteStatus { Proposed, AlreadyApplied, Invalid, UnauthorizedOrNotFound, Conflict, OperationMismatch }
+public enum ProposalWriteStatus { Proposed, AlreadyApplied, Invalid, TargetNotEligible, UnauthorizedOrNotFound, Conflict, OperationMismatch }
 public sealed record ProposalWriteResult(ProposalWriteStatus Status, AdrProposal? Proposal, IReadOnlyList<ProposalValidationError> Errors)
 {
     public bool IsSuccess => Status is ProposalWriteStatus.Proposed or ProposalWriteStatus.AlreadyApplied;
 }
-public enum DecisionWriteStatus { Decided, AlreadyApplied, Invalid, UnauthorizedOrNotFound, Conflict, OperationMismatch }
+public enum DecisionWriteStatus { Decided, AlreadyApplied, Invalid, SupersessionPending, UnauthorizedOrNotFound, Conflict, OperationMismatch }
 public sealed record DecisionWriteResult(DecisionWriteStatus Status, AdrProposal? Record, IReadOnlyList<DecisionNoteValidationError> Errors)
 {
     public bool IsSuccess => Status is DecisionWriteStatus.Decided or DecisionWriteStatus.AlreadyApplied;

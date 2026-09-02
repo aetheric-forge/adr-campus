@@ -244,6 +244,20 @@ public sealed class DiscoveryApplicationServiceTests
     }
 
     [Fact]
+    public async Task DetailShowsFrozenTargetAndInboundPendingReplacements()
+    {
+        var target = Proposed(1, title: "Existing decision").Decide(DecisionOutcome.Accepted, new MemberId("decider"), "", Now.AddMinutes(2));
+        var replacement = Proposed(2, title: "Replacement decision") with { IntendedSupersessionTargetId = target.Id };
+        var service = Service([target, replacement]);
+
+        var replacementDetail = await service.GetDetailAsync(Organization, Member, replacement.Id);
+        var targetDetail = await service.GetDetailAsync(Organization, Member, target.Id);
+
+        Assert.Equal(target.Id, replacementDetail.Detail!.IntendedSupersessionTarget!.Id);
+        Assert.Equal(replacement.Id, Assert.Single(targetDetail.Detail!.ProposedReplacements!).Id);
+    }
+
+    [Fact]
     public async Task DetailUsesStableIdentifierWhenActorIsNoLongerInDirectory()
     {
         var record = Proposed(1, author: "former-author-id");

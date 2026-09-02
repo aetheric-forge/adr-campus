@@ -66,7 +66,20 @@ public sealed class DiscoveryApplicationService(ISharedRecordRepository records,
                 var type = record.FinalDecision.Outcome == DecisionOutcome.Accepted ? LifecycleEventType.Accepted : LifecycleEventType.Rejected;
                 history.Add(new(type, record.FinalDecision.Outcome == DecisionOutcome.Accepted ? "Accepted as a current decision" : "Rejected", decider!, record.FinalDecision.DecidedAtUtc, record.FinalDecision.Note));
             }
-            return SharedDetailResult.Success(new(record, author, proposer, decider, history.OrderBy(item => item.OccurredAtUtc).ToArray(), []));
+            SharedRecordReference? intendedTarget = null;
+            if (record.IntendedSupersessionTargetId is not null)
+            {
+                var target = await records.GetSharedAsync(organizationId, record.IntendedSupersessionTargetId.Value, cancellationToken).ConfigureAwait(false);
+                if (target is not null && target.OrganizationId == organizationId)
+                    intendedTarget = new(target.Id, target.Content.Title, target.Status);
+            }
+            var proposedReplacements = (await records.ListSharedAsync(organizationId, cancellationToken).ConfigureAwait(false))
+                .Where(candidate => candidate.OrganizationId == organizationId && candidate.Status == AdrLifecycleStatus.Proposed && candidate.IntendedSupersessionTargetId == record.Id)
+                .OrderByDescending(candidate => candidate.ProposedAtUtc)
+                .ThenBy(candidate => candidate.Id.Value)
+                .Select(candidate => new SharedRecordReference(candidate.Id, candidate.Content.Title, candidate.Status))
+                .ToArray();
+            return SharedDetailResult.Success(new(record, author, proposer, decider, history.OrderBy(item => item.OccurredAtUtc).ToArray(), [], intendedTarget, proposedReplacements));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception) { return SharedDetailResult.Unavailable(); }
@@ -144,7 +157,8 @@ public enum LifecycleEventType { Created, Proposed, Accepted, Rejected, AuthorRe
 public sealed record MemberAttribution(MemberId Id, string DisplayName, bool IsCurrentMember);
 public sealed record LifecycleHistoryItem(LifecycleEventType Type, string Label, MemberAttribution Actor, DateTimeOffset OccurredAtUtc, string? Note);
 public sealed record SharedRecordRelationship(string Direction, AdrId RelatedId, DraftTitle RelatedTitle, DateTimeOffset OccurredAtUtc);
-public sealed record SharedRecordDetail(AdrProposal Record, MemberAttribution Author, MemberAttribution Proposer, MemberAttribution? Decider, IReadOnlyList<LifecycleHistoryItem> History, IReadOnlyList<SharedRecordRelationship> Relationships);
+public sealed record SharedRecordReference(AdrId Id, DraftTitle Title, AdrLifecycleStatus Status);
+public sealed record SharedRecordDetail(AdrProposal Record, MemberAttribution Author, MemberAttribution Proposer, MemberAttribution? Decider, IReadOnlyList<LifecycleHistoryItem> History, IReadOnlyList<SharedRecordRelationship> Relationships, SharedRecordReference? IntendedSupersessionTarget = null, IReadOnlyList<SharedRecordReference>? ProposedReplacements = null);
 public enum SharedDetailStatus { Success, Unauthorized, NotFound, Unavailable }
 public sealed record SharedDetailResult(SharedDetailStatus Status, SharedRecordDetail? Detail)
 {
