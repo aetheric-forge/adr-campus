@@ -127,6 +127,7 @@ builder.Services.AddScoped<AdministrationHistoryService>();
 builder.Services.AddScoped<MembershipObservationService>();
 builder.Services.AddSingleton(new CurrentOrganization(
     new OrganizationId(builder.Configuration["Organization:Id"]!)));
+builder.Services.AddHostedService<MembershipSyncBackgroundService>();
 builder.Services.AddSingleton(new OrganizationBootstrapConfiguration(
     new OrganizationId(builder.Configuration["Organization:Id"]!),
     builder.Configuration["Organization:DisplayName"]!,
