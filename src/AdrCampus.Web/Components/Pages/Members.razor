@@ -1,8 +1,6 @@
 @page "/members"
-@using AdrCampus.Application.Membership
-@using AdrCampus.Web.Drafts
-@inject MembershipObservationService Observation
-@inject CurrentOrganization Organization
+@using AdrCampus.Web.Members
+@inject MemberRosterService RosterService
 
 <PageTitle>Members</PageTitle>
 
@@ -21,32 +19,32 @@
         <div><h2>Loading current roster</h2><p>Checking the organization directory…</p></div>
     </section>
 }
-else if (_result is { IsAvailable: false })
+else if (_roster is { IsAvailable: false })
 {
     <section class="placeholder-panel roster-message roster-error" role="alert">
         <span class="roster-status-icon" aria-hidden="true">!</span>
         <div>
             <h2>Member roster unavailable</h2>
-            <p>@_result.ErrorMessage</p>
+            <p>@_roster.ErrorMessage</p>
             <button class="button button-secondary" type="button" @onclick="LoadAsync">Try again</button>
         </div>
     </section>
 }
-else if (_result is { Snapshot.Members.Count: 0 })
+else if (_roster is { Members.Count: 0 })
 {
     <section class="placeholder-panel">
         <h2>No active members</h2>
         <p>The configured member group currently contains no enabled identities.</p>
     </section>
 }
-else if (_result?.Snapshot is not null)
+else if (_roster is not null)
 {
     <div class="roster-summary">
-        <p><strong>@_result.Snapshot.Members.Count</strong> active @(_result.Snapshot.Members.Count == 1 ? "member" : "members")</p>
-        <p>Current as of <time datetime="@_result.Snapshot.ObservedAtUtc.ToString("O")">@_result.Snapshot.ObservedAtUtc.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt")</time></p>
+        <p><strong>@_roster.Members.Count</strong> active @(_roster.Members.Count == 1 ? "member" : "members")</p>
+        <p>Current as of <time datetime="@_roster.ObservedAtUtc?.ToString("O")">@_roster.ObservedAtUtc?.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt")</time></p>
     </div>
     <section class="member-list" aria-label="Current organization members">
-        @foreach (var member in _result.Snapshot.Members)
+        @foreach (var member in _roster.Members)
         {
             <article class="member-row">
                 <span class="member-avatar" aria-hidden="true">@Initials(member.DisplayName)</span>
@@ -60,7 +58,7 @@ else if (_result?.Snapshot is not null)
 }
 
 @code {
-    private MembershipSyncResult? _result;
+    private MemberRosterResult? _roster;
     private bool _isLoading = true;
 
     protected override Task OnInitializedAsync() => LoadAsync();
@@ -70,7 +68,7 @@ else if (_result?.Snapshot is not null)
         _isLoading = true;
         try
         {
-            _result = await Observation.SynchronizeAsync(Organization.Id);
+            _roster = await RosterService.GetCurrentAsync();
         }
         finally
         {
