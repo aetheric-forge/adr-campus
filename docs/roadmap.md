@@ -1,6 +1,6 @@
 # Delivery Roadmap
 
-ADR Campus is being delivered in small, usable releases on the way to the first complete decision workflow described by the user stories. Version numbers describe implementation milestones; they do not replace or redefine the product stories.
+ADR Campus is delivered in small, usable releases. Version numbers describe implementation milestones; they do not replace or redefine the product stories.
 
 ## Completed Releases
 
@@ -41,14 +41,16 @@ Version 0.6 implements replacement drafting, immutable intended-target metadata,
 
 The detailed release record is in [releases/v0.6.md](releases/v0.6.md), with implementation sequencing and QA coverage in [backlog/v0.6.md](backlog/v0.6.md).
 
-## Active Release
-
 ### v0.7 — Complete Organization Administration
 
-Complete the remaining application-owned administration behavior from [06-administer-the-organization.md](stories/06-administer-the-organization.md), including membership projections, draft recovery, organization settings, administration history, expiry, and maintenance processing.
+Version 0.7 completes the application-owned administration behavior from [06-administer-the-organization.md](stories/06-administer-the-organization.md): membership projections, draft recovery, organization settings, administration history, expiry, and maintenance processing. With this release, all six documented journeys work end to end.
 
-The detailed scope is in [releases/v0.7.md](releases/v0.7.md), with implementation sequencing in [backlog/v0.7.md](backlog/v0.7.md).
+The detailed release record is in [releases/v0.7.md](releases/v0.7.md), with implementation sequencing in [backlog/v0.7.md](backlog/v0.7.md).
 
-## First Complete Release
+## Active Release
 
-The first complete release is reached when the six documented journeys work together end to end and satisfy the outcome in [stories/overview.md](stories/overview.md). Planned version boundaries may be adjusted when implementation reveals a safer or more coherent slice, but story acceptance criteria remain authoritative.
+### v1.0 — First Complete Release
+
+All six journeys from [stories/overview.md](stories/overview.md) now work together end to end, satisfying the outcome described there. Version 1.0 adds no product scope; it closes out the release with a correctness fix surfaced during v0.7 live QA, a repository entry point, and end-to-end verification against real infrastructure.
+
+The detailed scope is in [releases/v1.0.md](releases/v1.0.md).
