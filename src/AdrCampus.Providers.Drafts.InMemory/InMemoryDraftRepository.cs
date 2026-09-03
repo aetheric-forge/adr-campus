@@ -78,7 +78,8 @@ public sealed class InMemoryDraftRepository : IDraftRepository
                     draft.CreatedAtUtc,
                     draft.ModifiedAtUtc,
                     draft.Version,
-                    draft.IntendedSupersessionTargetId))
+                    draft.IntendedSupersessionTargetId,
+                    draft.RecoveryDeadlineUtc))
                 .ToArray();
             return Task.FromResult(summaries);
         }

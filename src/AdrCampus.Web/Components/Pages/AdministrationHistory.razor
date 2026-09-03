@@ -1,0 +1,98 @@
+@page "/administration/history"
+@attribute [Authorize(Policy = IdentityPolicies.ActiveMaintainer)]
+@using System.Security.Claims
+@using AdrCampus.Application.Administration
+@using AdrCampus.Core.Administration
+@using AdrCampus.Core.Domain
+@using AdrCampus.Web.Drafts
+@using AdrCampus.Web.Identity
+@inject AdministrationHistoryService History
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject CurrentOrganization Organization
+
+<PageTitle>Administration history</PageTitle>
+<div class="page-header">
+    <div><span class="eyebrow">Administration</span><h1>Administration history</h1><p>Application-owned organization, membership, and recovery events. This complements but does not replace the SSO control plane's own audit log.</p></div>
+    <a class="button button-secondary" href="administration">Administration</a>
+</div>
+
+@if (_loading)
+{
+    <section class="placeholder-panel"><h2>Loading history</h2><p>Reading the administration record…</p></section>
+}
+else if (!_authorized)
+{
+    <section class="placeholder-panel roster-message roster-error" role="alert">
+        <span class="roster-status-icon" aria-hidden="true">!</span>
+        <div><h2>History unavailable</h2><p>Current Maintainer authority could not be established.</p></div>
+    </section>
+}
+else if (_items.Count == 0)
+{
+    <section class="placeholder-panel"><h2>No administration events yet</h2><p>Bootstrap, rename, membership, recovery, and maintenance events will appear here as they happen.</p></section>
+}
+else
+{
+    <div class="record-table">
+        <table class="history-table">
+            <thead><tr><th>When</th><th>Event</th><th>Who</th><th>Detail</th></tr></thead>
+            <tbody>
+                @foreach (var item in _items)
+                {
+                    <tr>
+                        <td><time datetime="@item.OccurredAtUtc.ToString("O")">@item.OccurredAtUtc.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt")</time></td>
+                        <td>@Label(item.Type)</td>
+                        <td>@Who(item)<small>@item.Source</small></td>
+                        <td>@Detail(item)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<AdministrationHistoryItem> _items = [];
+    private bool _loading = true;
+    private bool _authorized = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var subjectId = authentication.User.FindFirst("sub")?.Value;
+            if (string.IsNullOrWhiteSpace(subjectId)) { _authorized = false; return; }
+            var result = await History.ListAsync(Organization.Id, new(subjectId));
+            _authorized = result.IsAuthorized;
+            _items = result.Items;
+        }
+        finally { _loading = false; }
+    }
+
+    private static string Who(AdministrationHistoryItem item) => item.ActorDisplayName ?? item.SubjectDisplayName ?? "—";
+
+    private static string Label(AdministrationEventType type) => type switch
+    {
+        AdministrationEventType.OrganizationBootstrapped => "Organization initialized",
+        AdministrationEventType.OrganizationRenamed => "Organization renamed",
+        AdministrationEventType.MemberAdded => "Member added",
+        AdministrationEventType.MemberRemoved => "Member removed",
+        AdministrationEventType.MaintainerGranted => "Maintainer granted",
+        AdministrationEventType.MaintainerRevoked => "Maintainer revoked",
+        AdministrationEventType.MemberDisplayNameChanged => "Display name changed",
+        AdministrationEventType.DraftRecoveryStarted => "Draft recovery started",
+        AdministrationEventType.DraftRecoveryCancelled => "Draft recovery cancelled",
+        AdministrationEventType.DraftReassigned => "Draft reassigned",
+        AdministrationEventType.DraftExpired => "Draft expired and purged",
+        _ => type.ToString()
+    };
+
+    private static string Detail(AdministrationHistoryItem item) => (item.PreviousValue, item.NewValue) switch
+    {
+        (not null, not null) => $"{item.PreviousValue} → {item.NewValue}",
+        (null, not null) => item.NewValue,
+        (not null, null) => item.PreviousValue,
+        _ => "—"
+    };
+}

@@ -10,7 +10,7 @@ using AethericForge.Runtime.Models.Staging;
 
 namespace AdrCampus.Providers.Drafts.Workbench;
 
-public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftRepository, IProposalRepository, ISharedRecordRepository, IDraftRecoveryRepository
+public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftRepository, IProposalRepository, ISharedRecordRepository, IDraftRecoveryRepository, IExpiredDraftPurgeRepository
 {
     private const string CatalogKey = "adr-campus/drafts/catalog-v1";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -37,7 +37,7 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
         var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
         return catalog.Drafts.Where(d => d.OrganizationId == organizationId.Value && d.AuthorId == authorId.Value)
             .OrderByDescending(d => d.ModifiedAtUtc).ThenBy(d => d.Id)
-            .Select(d => new DraftSummary(new AdrId(d.Id), new DraftTitle(d.Title), d.CreatedAtUtc, d.ModifiedAtUtc, d.Version, ToAdrId(d.IntendedSupersessionTargetId))).ToArray();
+            .Select(d => new DraftSummary(new AdrId(d.Id), new DraftTitle(d.Title), d.CreatedAtUtc, d.ModifiedAtUtc, d.Version, ToAdrId(d.IntendedSupersessionTargetId), d.RecoveryDeadlineUtc)).ToArray();
     }
 
     public Task<DraftWriteResult> SaveRevisionAsync(AdrDraft draft, long expectedPersistedVersion, OperationId operationId, CancellationToken cancellationToken = default) =>
@@ -66,6 +66,7 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
         var draftIndex = catalog.Drafts.FindIndex(d => d.OrganizationId == organizationId.Value && d.AuthorId == authorId.Value && d.Id == draftId.Value);
         if (draftIndex < 0) return new(ProposalWriteStatus.UnauthorizedOrNotFound, null, []);
         var draft = ToDomain(catalog.Drafts[draftIndex]);
+        if (draft.IsExpired(proposedAtUtc)) return new(ProposalWriteStatus.UnauthorizedOrNotFound, null, []);
         if (draft.Version != expectedDraftVersion) return new(ProposalWriteStatus.Conflict, null, []);
         var validation = ProposalValidator.Validate(draft.Content);
         if (!validation.IsValid) return new(ProposalWriteStatus.Invalid, null, validation.Errors);
@@ -194,6 +195,7 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
         if (index < 0) return new(RecoveryWriteStatus.NotFound, null);
         var current = ToDomain(catalog.Drafts[index]);
         if (current.AuthorId != authorId) return new(RecoveryWriteStatus.Conflict, current);
+        if (current.IsExpired(administrationEvent.OccurredAtUtc)) return new(RecoveryWriteStatus.Expired, current);
         if (current.RecoveryDeadlineUtc is null) return new(RecoveryWriteStatus.AlreadyApplied, current);
         if (current.Version != expectedVersion) return new(RecoveryWriteStatus.Conflict, current);
         var next = current.CancelRecovery(administrationEvent.OccurredAtUtc);
@@ -242,6 +244,38 @@ public sealed class WorkbenchDraftRepository(IStagingProvider staging) : IDraftR
         var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
         return catalog.RecoveryEvents.Where(e => e.OrganizationId == organizationId.Value)
             .OrderBy(e => e.OccurredAtUtc).ThenBy(e => e.Id).Select(ToDomain).ToArray();
+    }
+
+    public async Task<IReadOnlyList<AdrId>> ListExpiredAsync(OrganizationId organizationId, DateTimeOffset now, int batchSize, CancellationToken cancellationToken = default)
+    {
+        var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        return catalog.Drafts
+            .Where(d => d.OrganizationId == organizationId.Value && d.RecoveryDeadlineUtc is not null && d.RecoveryDeadlineUtc <= now)
+            .OrderBy(d => d.RecoveryDeadlineUtc).ThenBy(d => d.Id)
+            .Take(batchSize)
+            .Select(d => new AdrId(d.Id))
+            .ToArray();
+    }
+
+    public async Task<int> PurgeBatchAsync(OrganizationId organizationId, IReadOnlyCollection<AdrId> draftIds, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken = default)
+    {
+        if (draftIds.Count == 0) return 0;
+        await using var handle = await staging.AcquireLockAsync(Reference, TimeSpan.FromMinutes(1), cancellationToken).ConfigureAwait(false);
+        if (!handle.IsAcquired) throw new InvalidOperationException("The draft Workbench is busy. Retry the operation.");
+        var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        var ids = draftIds.Select(id => id.Value).ToHashSet();
+        var purged = 0;
+        foreach (var record in catalog.Drafts.Where(d => d.OrganizationId == organizationId.Value && ids.Contains(d.Id) && d.RecoveryDeadlineUtc is not null && d.RecoveryDeadlineUtc <= occurredAtUtc).ToArray())
+        {
+            catalog.Drafts.Remove(record);
+            catalog.RecoveryEvents.Add(FromDomain(new AdministrationEvent(Guid.NewGuid(), organizationId, AdministrationEventType.DraftExpired, occurredAtUtc, "Maintenance", SubjectId: new(record.AuthorId), DraftId: new(record.Id))));
+            purged++;
+        }
+        if (purged > 0)
+        {
+            await SaveAsync(catalog, cancellationToken).ConfigureAwait(false);
+        }
+        return purged;
     }
 
     private async Task<DraftWriteResult> WriteAsync(OperationId operationId, string kind, AdrDraft draft, long? expectedVersion, Func<Catalog, DraftWriteResult> apply, CancellationToken cancellationToken)

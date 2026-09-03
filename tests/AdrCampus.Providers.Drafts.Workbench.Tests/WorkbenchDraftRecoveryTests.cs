@@ -56,6 +56,23 @@ public sealed class WorkbenchDraftRecoveryTests
     }
 
     [Fact]
+    public async Task CancelRecoveryRefusesAnExpiredWindowAndDoesNotRestoreAccess()
+    {
+        var staging = new InMemoryStagingProvider("recovery");
+        var repository = new WorkbenchDraftRepository(staging);
+        var draft = Draft();
+        await repository.CreateAsync(draft, OperationId.New());
+        var started = await repository.StartRecoveryAsync(Organization, draft.Id, FormerAuthor, draft.Version, Now.AddDays(-1), Event(AdministrationEventType.DraftRecoveryStarted, Now.AddDays(-31), draft.Id));
+
+        var result = await repository.CancelRecoveryAsync(Organization, draft.Id, FormerAuthor, started.Draft!.Version, Event(AdministrationEventType.DraftRecoveryCancelled, Now, draft.Id));
+
+        Assert.Equal(RecoveryWriteStatus.Expired, result.Status);
+        Assert.NotNull(result.Draft!.RecoveryDeadlineUtc);
+        Assert.Equal(FormerAuthor, (await repository.GetByAuthorAsync(Organization, FormerAuthor, draft.Id))!.AuthorId);
+        Assert.Empty(await repository.ListEligibleAsync(Organization, Now));
+    }
+
+    [Fact]
     public async Task ListEligibleExcludesUnrelatedAndExpiredDrafts()
     {
         var staging = new InMemoryStagingProvider("recovery");
@@ -132,6 +149,85 @@ public sealed class WorkbenchDraftRecoveryTests
         var result = await repository.ReassignAsync(Organization, draft.Id, FormerAuthor, NewAuthor, started.Draft!.Version, Now, Event(AdministrationEventType.DraftReassigned, Now, draft.Id), OperationId.New());
 
         Assert.Equal(ReassignDraftStatus.Expired, result.Status);
+    }
+
+    [Fact]
+    public async Task ListExpiredReturnsOnlyExpiredUnreassignedDraftsBoundedByBatchSize()
+    {
+        var staging = new InMemoryStagingProvider("recovery");
+        var repository = new WorkbenchDraftRepository(staging);
+        var expired1 = Draft();
+        var expired2 = Draft();
+        var notExpired = Draft();
+        await repository.CreateAsync(expired1, OperationId.New());
+        await repository.CreateAsync(expired2, OperationId.New());
+        await repository.CreateAsync(notExpired, OperationId.New());
+        await repository.StartRecoveryAsync(Organization, expired1.Id, FormerAuthor, expired1.Version, Now.AddDays(-1), Event(AdministrationEventType.DraftRecoveryStarted, Now.AddDays(-31), expired1.Id));
+        await repository.StartRecoveryAsync(Organization, expired2.Id, FormerAuthor, expired2.Version, Now.AddDays(-2), Event(AdministrationEventType.DraftRecoveryStarted, Now.AddDays(-32), expired2.Id));
+        await repository.StartRecoveryAsync(Organization, notExpired.Id, FormerAuthor, notExpired.Version, Now.AddDays(30), Event(AdministrationEventType.DraftRecoveryStarted, Now, notExpired.Id));
+
+        var all = await repository.ListExpiredAsync(Organization, Now, batchSize: 10);
+        var bounded = await repository.ListExpiredAsync(Organization, Now, batchSize: 1);
+
+        Assert.Equal(2, all.Count);
+        Assert.Contains(expired1.Id, all);
+        Assert.Contains(expired2.Id, all);
+        Assert.Single(bounded);
+    }
+
+    [Fact]
+    public async Task PurgeBatchRemovesContentButRetainsAnExpirationEvent()
+    {
+        var staging = new InMemoryStagingProvider("recovery");
+        var repository = new WorkbenchDraftRepository(staging);
+        var expired = Draft();
+        var notExpired = Draft();
+        await repository.CreateAsync(expired, OperationId.New());
+        await repository.CreateAsync(notExpired, OperationId.New());
+        await repository.StartRecoveryAsync(Organization, expired.Id, FormerAuthor, expired.Version, Now.AddDays(-1), Event(AdministrationEventType.DraftRecoveryStarted, Now.AddDays(-31), expired.Id));
+
+        var purged = await repository.PurgeBatchAsync(Organization, [expired.Id, notExpired.Id], Now);
+
+        Assert.Equal(1, purged);
+        Assert.Null(await repository.GetByAuthorAsync(Organization, FormerAuthor, expired.Id));
+        Assert.NotNull(await repository.GetByAuthorAsync(Organization, FormerAuthor, notExpired.Id));
+        var events = await repository.ListRecoveryEventsAsync(Organization);
+        var expirationEvent = Assert.Single(events, e => e.Type == AdministrationEventType.DraftExpired);
+        Assert.Equal(expired.Id, expirationEvent.DraftId);
+        Assert.Null(expirationEvent.PreviousValue);
+    }
+
+    [Fact]
+    public async Task PurgingAnAlreadyPurgedDraftIsANoOp()
+    {
+        var staging = new InMemoryStagingProvider("recovery");
+        var repository = new WorkbenchDraftRepository(staging);
+        var expired = Draft();
+        await repository.CreateAsync(expired, OperationId.New());
+        await repository.StartRecoveryAsync(Organization, expired.Id, FormerAuthor, expired.Version, Now.AddDays(-1), Event(AdministrationEventType.DraftRecoveryStarted, Now.AddDays(-31), expired.Id));
+
+        var first = await repository.PurgeBatchAsync(Organization, [expired.Id], Now);
+        var retry = await repository.PurgeBatchAsync(Organization, [expired.Id], Now);
+
+        Assert.Equal(1, first);
+        Assert.Equal(0, retry);
+        Assert.Single(await repository.ListRecoveryEventsAsync(Organization), e => e.Type == AdministrationEventType.DraftExpired);
+    }
+
+    [Fact]
+    public async Task PurgeStateAndEventsSurviveRepositoryRecomposition()
+    {
+        var staging = new InMemoryStagingProvider("recovery");
+        var expired = Draft();
+        await new WorkbenchDraftRepository(staging).CreateAsync(expired, OperationId.New());
+        await new WorkbenchDraftRepository(staging).StartRecoveryAsync(Organization, expired.Id, FormerAuthor, expired.Version, Now.AddDays(-1), Event(AdministrationEventType.DraftRecoveryStarted, Now.AddDays(-31), expired.Id));
+        await new WorkbenchDraftRepository(staging).PurgeBatchAsync(Organization, [expired.Id], Now);
+
+        var recomposed = new WorkbenchDraftRepository(staging);
+
+        Assert.Null(await recomposed.GetByAuthorAsync(Organization, FormerAuthor, expired.Id));
+        Assert.Empty(await recomposed.ListEligibleAsync(Organization, Now));
+        Assert.Contains(await recomposed.ListRecoveryEventsAsync(Organization), e => e.Type == AdministrationEventType.DraftExpired);
     }
 
     [Fact]

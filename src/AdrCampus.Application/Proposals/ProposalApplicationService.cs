@@ -10,7 +10,7 @@ public sealed class ProposalApplicationService(IDraftRepository drafts, IProposa
     {
         if (!await members.IsActiveMemberAsync(organizationId, authorId, cancellationToken).ConfigureAwait(false)) return PrepareProposalResult.Unauthorized();
         var draft = await drafts.GetByAuthorAsync(organizationId, authorId, draftId, cancellationToken).ConfigureAwait(false);
-        if (draft is null) return PrepareProposalResult.NotFound();
+        if (draft is null || draft.IsExpired(clock.GetUtcNow())) return PrepareProposalResult.NotFound();
         var validation = ProposalValidator.Validate(draft.Content);
         if (!validation.IsValid) return PrepareProposalResult.Invalid(draft, validation.Errors);
         var target = await ResolveTargetAsync(draft.OrganizationId, draft.IntendedSupersessionTargetId, cancellationToken).ConfigureAwait(false);
