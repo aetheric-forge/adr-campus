@@ -1,6 +1,121 @@
 @page "/administration/recovery"
 @attribute [Authorize(Policy = IdentityPolicies.ActiveMaintainer)]
+@using System.Security.Claims
+@using AdrCampus.Application.Drafts
+@using AdrCampus.Application.Membership
+@using AdrCampus.Core.Domain
+@using AdrCampus.Web.Drafts
 @using AdrCampus.Web.Identity
+@inject DraftRecoveryApplicationService Recovery
+@inject MembershipObservationService Observation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject CurrentOrganization Organization
+
 <PageTitle>Draft recovery</PageTitle>
-<div class="page-header"><div><span class="eyebrow">Administration</span><h1>Draft recovery</h1><p>Reassign drafts during their 30-day recovery window.</p></div></div>
-<section class="placeholder-panel"><h2>No drafts need recovery</h2><p>Eligible drafts will appear here with their former author and expiration time.</p></section>
+<div class="page-header">
+    <div><span class="eyebrow">Administration</span><h1>Draft recovery</h1><p>Reassign drafts during their 30-day recovery window.</p></div>
+    <a class="button button-secondary" href="administration">Administration</a>
+</div>
+
+@if (_loading)
+{
+    <section class="placeholder-panel"><h2>Loading recovery list</h2><p>Checking eligible drafts…</p></section>
+}
+else if (!_authorized)
+{
+    <section class="placeholder-panel roster-message roster-error" role="alert">
+        <span class="roster-status-icon" aria-hidden="true">!</span>
+        <div><h2>Recovery list unavailable</h2><p>Current Maintainer authority could not be established.</p></div>
+    </section>
+}
+else if (_rows.Count == 0)
+{
+    <section class="placeholder-panel"><h2>No drafts need recovery</h2><p>Eligible drafts will appear here with their former author and expiration time.</p></section>
+}
+else
+{
+    <section class="member-list" aria-label="Drafts eligible for recovery">
+        @foreach (var row in _rows)
+        {
+            <article class="recovery-row">
+                <div class="member-identity">
+                    <h2>@row.Item.Title.Value</h2>
+                    <p>Former author: @row.Item.FormerAuthorDisplayName · expires <time datetime="@row.Item.ExpiresAtUtc.ToString("O")">@row.Item.ExpiresAtUtc.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt")</time></p>
+                    @if (row.Message is not null)
+                    {
+                        <div class="form-message @(row.Succeeded ? "form-success" : "form-error")" role="@(row.Succeeded ? "status" : "alert")">@row.Message</div>
+                    }
+                </div>
+                @if (!row.Succeeded)
+                {
+                    <div class="form-actions">
+                        <select @bind="row.SelectedRecipientId" disabled="@row.Saving">
+                            <option value="">Select a member…</option>
+                            @foreach (var member in _activeMembers)
+                            {
+                                <option value="@member.MemberId.Value">@member.DisplayName</option>
+                            }
+                        </select>
+                        <button class="button button-primary" type="button" disabled="@(row.Saving || string.IsNullOrEmpty(row.SelectedRecipientId))" @onclick="() => ReassignAsync(row)">@(row.Saving ? "Reassigning…" : "Reassign")</button>
+                    </div>
+                }
+            </article>
+        }
+    </section>
+}
+
+@code {
+    private List<Row> _rows = [];
+    private IReadOnlyCollection<DirectoryRosterEntry> _activeMembers = [];
+    private MemberId? _maintainer;
+    private bool _loading = true;
+    private bool _authorized = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var subjectId = authentication.User.FindFirst("sub")?.Value;
+            if (string.IsNullOrWhiteSpace(subjectId)) { _authorized = false; return; }
+            _maintainer = new(subjectId);
+            var membership = await Observation.SynchronizeAsync(Organization.Id);
+            _activeMembers = membership.Snapshot?.Members ?? [];
+            var result = await Recovery.ListEligibleAsync(Organization.Id, _maintainer);
+            _authorized = result.IsAuthorized;
+            _rows = result.Items.Select(item => new Row(item)).ToList();
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task ReassignAsync(Row row)
+    {
+        if (row.Saving || _maintainer is null || string.IsNullOrEmpty(row.SelectedRecipientId)) return;
+        row.Saving = true; row.Message = null;
+        try
+        {
+            var result = await Recovery.ReassignAsync(new(Organization.Id, _maintainer, row.Item.Id, row.Item.FormerAuthorId, new(row.SelectedRecipientId), row.Item.Version, row.OperationId));
+            if (result.IsSuccess)
+            {
+                row.Succeeded = true;
+                row.Message = "Reassigned. The new author can now access this draft.";
+            }
+            else
+            {
+                row.Message = result.ErrorMessage ?? "The draft could not be reassigned.";
+                row.OperationId = OperationId.New();
+            }
+        }
+        finally { row.Saving = false; }
+    }
+
+    private sealed class Row(RecoveryListItem item)
+    {
+        public RecoveryListItem Item { get; } = item;
+        public string SelectedRecipientId { get; set; } = string.Empty;
+        public bool Saving { get; set; }
+        public bool Succeeded { get; set; }
+        public string? Message { get; set; }
+        public OperationId OperationId { get; set; } = OperationId.New();
+    }
+}

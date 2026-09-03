@@ -35,7 +35,8 @@ public sealed record AdrDraft
         AdrId? intendedSupersessionTargetId,
         DateTimeOffset createdAtUtc,
         DateTimeOffset modifiedAtUtc,
-        long version)
+        long version,
+        DateTimeOffset? recoveryDeadlineUtc)
     {
         Id = id;
         OrganizationId = organizationId;
@@ -45,6 +46,7 @@ public sealed record AdrDraft
         CreatedAtUtc = createdAtUtc;
         ModifiedAtUtc = modifiedAtUtc;
         Version = version;
+        RecoveryDeadlineUtc = recoveryDeadlineUtc;
     }
 
     public AdrId Id { get; }
@@ -56,6 +58,7 @@ public sealed record AdrDraft
     public DateTimeOffset CreatedAtUtc { get; }
     public DateTimeOffset ModifiedAtUtc { get; }
     public long Version { get; }
+    public DateTimeOffset? RecoveryDeadlineUtc { get; }
 
     public static AdrDraft Create(
         AdrId id,
@@ -72,15 +75,15 @@ public sealed record AdrDraft
         {
             throw new ArgumentException("An ADR cannot target itself for supersession.", nameof(intendedSupersessionTargetId));
         }
-        return new AdrDraft(id, organizationId, authorId, content, intendedSupersessionTargetId, nowUtc, nowUtc, 1);
+        return new AdrDraft(id, organizationId, authorId, content, intendedSupersessionTargetId, nowUtc, nowUtc, 1, null);
     }
 
-    public static AdrDraft Restore(AdrId id, OrganizationId organizationId, MemberId authorId, DraftContent content, DateTimeOffset createdAtUtc, DateTimeOffset modifiedAtUtc, long version, AdrId? intendedSupersessionTargetId = null)
+    public static AdrDraft Restore(AdrId id, OrganizationId organizationId, MemberId authorId, DraftContent content, DateTimeOffset createdAtUtc, DateTimeOffset modifiedAtUtc, long version, AdrId? intendedSupersessionTargetId = null, DateTimeOffset? recoveryDeadlineUtc = null)
     {
         if (version < 1) throw new ArgumentOutOfRangeException(nameof(version));
         if (modifiedAtUtc < createdAtUtc) throw new ArgumentOutOfRangeException(nameof(modifiedAtUtc));
         if (intendedSupersessionTargetId == id) throw new ArgumentException("An ADR cannot target itself for supersession.", nameof(intendedSupersessionTargetId));
-        return new AdrDraft(id, organizationId, authorId, content, intendedSupersessionTargetId, createdAtUtc, modifiedAtUtc, version);
+        return new AdrDraft(id, organizationId, authorId, content, intendedSupersessionTargetId, createdAtUtc, modifiedAtUtc, version, recoveryDeadlineUtc);
     }
 
     public AdrDraft Revise(DraftContent content, long expectedVersion, DateTimeOffset nowUtc, AdrId? intendedSupersessionTargetId = null)
@@ -107,8 +110,39 @@ public sealed record AdrDraft
             intendedSupersessionTargetId,
             CreatedAtUtc,
             nowUtc,
-            checked(Version + 1));
+            checked(Version + 1),
+            RecoveryDeadlineUtc);
     }
+
+    public AdrDraft StartRecovery(DateTimeOffset deadlineUtc, DateTimeOffset now)
+    {
+        if (RecoveryDeadlineUtc is not null)
+        {
+            throw new InvalidOperationException($"Draft '{Id}' is already in recovery.");
+        }
+        return new AdrDraft(Id, OrganizationId, AuthorId, Content, IntendedSupersessionTargetId, CreatedAtUtc, now, checked(Version + 1), deadlineUtc);
+    }
+
+    public AdrDraft CancelRecovery(DateTimeOffset now)
+    {
+        if (RecoveryDeadlineUtc is null)
+        {
+            return this;
+        }
+        return new AdrDraft(Id, OrganizationId, AuthorId, Content, IntendedSupersessionTargetId, CreatedAtUtc, now, checked(Version + 1), null);
+    }
+
+    public AdrDraft Reassign(MemberId newAuthorId, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(newAuthorId);
+        if (RecoveryDeadlineUtc is null)
+        {
+            throw new InvalidOperationException($"Draft '{Id}' is not in recovery.");
+        }
+        return new AdrDraft(Id, OrganizationId, newAuthorId, Content, IntendedSupersessionTargetId, CreatedAtUtc, now, checked(Version + 1), null);
+    }
+
+    public bool IsExpired(DateTimeOffset now) => RecoveryDeadlineUtc is not null && now >= RecoveryDeadlineUtc;
 }
 
 public sealed class DraftConcurrencyException(AdrId draftId, long expectedVersion, long currentVersion)
