@@ -115,6 +115,9 @@ a.feature-card:hover { border-color: #9ab5a4; transform: translateY(-1px); }
 .member-identity h2 { margin: 0; font-size: .98rem; }
 .role-badge { padding: 5px 9px; border: 1px solid #d7dad5; border-radius: 999px; background: #f7f7f4; color: #626963; font-size: .7rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
 .role-maintainer { border-color: #a8c2b1; background: #edf4ef; color: var(--accent-dark); }
+.recovery-row { min-height: 82px; padding: 16px 20px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; border-bottom: 1px solid var(--line); }
+.recovery-row:last-child { border-bottom: 0; }
+.recovery-row .form-actions { margin-top: 0; }
 @keyframes roster-spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) {
     .page-header { align-items: flex-start; flex-direction: column; }
@@ -124,6 +127,7 @@ a.feature-card:hover { border-color: #9ab5a4; transform: translateY(-1px); }
     .form-placeholder { padding: 22px; }
     .roster-summary { align-items: flex-start; flex-direction: column; gap: 3px; }
     .member-row { padding: 14px; grid-template-columns: 42px minmax(0, 1fr); }
+    .recovery-row { padding: 14px; grid-template-columns: minmax(0, 1fr); }
     .filter-panel { align-items: stretch; flex-direction: column; }
     .omnibar-form { flex-wrap: wrap; }
     .filter-actions { justify-content: flex-start; }

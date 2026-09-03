@@ -1,10 +1,11 @@
+using AdrCampus.Application.Drafts;
 using AdrCampus.Core.Administration;
 using AdrCampus.Core.Domain;
 using AdrCampus.Core.Membership;
 
 namespace AdrCampus.Application.Membership;
 
-public sealed class MembershipObservationService(IMembershipRepository repository, IDirectoryRosterSource directory, TimeProvider timeProvider)
+public sealed class MembershipObservationService(IMembershipRepository repository, IDirectoryRosterSource directory, IDraftRecoveryCoordinator recoveryCoordinator, TimeProvider timeProvider)
 {
     private const string Source = "SSO observation";
 
@@ -51,6 +52,10 @@ public sealed class MembershipObservationService(IMembershipRepository repositor
                 Record(write, entry.MemberId, type, transitions);
                 if (write.Status == MembershipWriteStatus.Conflict) continue;
                 working = write.State ?? next;
+                if (write.Status == MembershipWriteStatus.Applied && type == AdministrationEventType.MemberAdded)
+                {
+                    await recoveryCoordinator.CancelRecoveryForReturningMemberAsync(organizationId, entry.MemberId, now, cancellationToken);
+                }
             }
 
             if (working.DisplayName != name)
@@ -74,6 +79,10 @@ public sealed class MembershipObservationService(IMembershipRepository repositor
             var evt = new AdministrationEvent(Guid.NewGuid(), organizationId, AdministrationEventType.MemberRemoved, now, Source, SubjectId: current.MemberId, PreviousValue: current.Role.ToString(), NewValue: MemberRole.None.ToString());
             var write = await repository.ApplyAsync(next, current.Version, evt, cancellationToken);
             Record(write, current.MemberId, AdministrationEventType.MemberRemoved, transitions);
+            if (write.Status == MembershipWriteStatus.Applied)
+            {
+                await recoveryCoordinator.StartRecoveryForDepartedMemberAsync(organizationId, current.MemberId, now, cancellationToken);
+            }
         }
 
         return MembershipSyncResult.Success(snapshot, transitions);

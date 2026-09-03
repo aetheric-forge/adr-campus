@@ -1,3 +1,4 @@
+using AdrCampus.Application.Drafts;
 using AdrCampus.Application.Membership;
 using AdrCampus.Core.Administration;
 using AdrCampus.Core.Domain;
@@ -45,6 +46,32 @@ public sealed class MembershipObservationServiceTests
     }
 
     [Fact]
+    public async Task RemovalStartsRecoveryAndReturnCancelsIt()
+    {
+        var repository = new StubRepository();
+        var coordinator = new StubDraftRecoveryCoordinator();
+        await Create(repository, Snapshot((Ada, "Ada Lovelace", false)), coordinator).SynchronizeAsync(Organization);
+        await Create(repository, Snapshot(), coordinator).SynchronizeAsync(Organization);
+        Assert.Equal([Ada], coordinator.Removed);
+        Assert.Empty(coordinator.Returned);
+
+        await Create(repository, Snapshot((Ada, "Ada Lovelace", false)), coordinator).SynchronizeAsync(Organization);
+        Assert.Equal([Ada], coordinator.Returned);
+    }
+
+    [Fact]
+    public async Task OrdinaryRoleAndNameChangesDoNotTouchRecoveryCoordinator()
+    {
+        var repository = new StubRepository();
+        var coordinator = new StubDraftRecoveryCoordinator();
+        await Create(repository, Snapshot((Ada, "Ada Lovelace", false)), coordinator).SynchronizeAsync(Organization);
+        await Create(repository, Snapshot((Ada, "Ada Lovelace", true)), coordinator).SynchronizeAsync(Organization);
+        await Create(repository, Snapshot((Ada, "Ada L. Byron", true)), coordinator).SynchronizeAsync(Organization);
+        Assert.Empty(coordinator.Removed);
+        Assert.Empty(coordinator.Returned);
+    }
+
+    [Fact]
     public async Task DisplayNameChangeProducesExactlyOneEvent()
     {
         var repository = new StubRepository();
@@ -72,7 +99,7 @@ public sealed class MembershipObservationServiceTests
         var repository = new StubRepository();
         await Create(repository, Snapshot((Ada, "Ada Lovelace", false))).SynchronizeAsync(Organization);
         var directory = new StubDirectory(DirectoryRosterSnapshot.Unavailable("directory down"));
-        var service = new MembershipObservationService(repository, directory, new FixedTimeProvider(Now.AddMinutes(1)));
+        var service = new MembershipObservationService(repository, directory, new StubDraftRecoveryCoordinator(), new FixedTimeProvider(Now.AddMinutes(1)));
         var result = await service.SynchronizeAsync(Organization);
         Assert.False(result.IsAvailable);
         Assert.Single(repository.Events);
@@ -89,8 +116,8 @@ public sealed class MembershipObservationServiceTests
         Assert.DoesNotContain(repository.Events, e => e.Type is AdministrationEventType.MaintainerGranted);
     }
 
-    private static MembershipObservationService Create(StubRepository repository, DirectoryRosterSnapshot snapshot) =>
-        new(repository, new StubDirectory(snapshot), new FixedTimeProvider(Now));
+    private static MembershipObservationService Create(StubRepository repository, DirectoryRosterSnapshot snapshot, IDraftRecoveryCoordinator? coordinator = null) =>
+        new(repository, new StubDirectory(snapshot), coordinator ?? new StubDraftRecoveryCoordinator(), new FixedTimeProvider(Now));
 
     private static DirectoryRosterSnapshot Snapshot(params (MemberId Id, string Name, bool IsMaintainer)[] members) =>
         DirectoryRosterSnapshot.Success(members.Select(m => new DirectoryRosterEntry(m.Id, m.Name, m.IsMaintainer)).ToArray(), Now);
@@ -100,6 +127,22 @@ public sealed class MembershipObservationServiceTests
     private sealed class StubDirectory(DirectoryRosterSnapshot snapshot) : IDirectoryRosterSource
     {
         public Task<DirectoryRosterSnapshot> GetCurrentAsync(OrganizationId organizationId, CancellationToken cancellationToken = default) => Task.FromResult(snapshot);
+    }
+
+    private sealed class StubDraftRecoveryCoordinator : IDraftRecoveryCoordinator
+    {
+        public List<MemberId> Removed { get; } = [];
+        public List<MemberId> Returned { get; } = [];
+        public Task StartRecoveryForDepartedMemberAsync(OrganizationId organizationId, MemberId formerMemberId, DateTimeOffset observedAtUtc, CancellationToken cancellationToken = default)
+        {
+            Removed.Add(formerMemberId);
+            return Task.CompletedTask;
+        }
+        public Task CancelRecoveryForReturningMemberAsync(OrganizationId organizationId, MemberId memberId, DateTimeOffset observedAtUtc, CancellationToken cancellationToken = default)
+        {
+            Returned.Add(memberId);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class StubRepository : IMembershipRepository

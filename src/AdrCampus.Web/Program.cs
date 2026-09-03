@@ -103,6 +103,7 @@ else
 builder.Services.AddSingleton<IDraftRepository, WorkbenchDraftRepository>();
 builder.Services.AddSingleton<IProposalRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
 builder.Services.AddSingleton<ISharedRecordRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
+builder.Services.AddSingleton<IDraftRecoveryRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
 builder.Services.AddSingleton<IOrganizationAdministrationRepository, WorkbenchOrganizationAdministrationRepository>();
 builder.Services.AddSingleton<IMembershipRepository, WorkbenchMembershipRepository>();
 builder.Services.AddScoped<IMemberAuthority, KeycloakMemberAuthority>();
@@ -112,6 +113,8 @@ builder.Services.AddScoped<DraftApplicationService>();
 builder.Services.AddScoped<ProposalApplicationService>();
 builder.Services.AddScoped<AdrCampus.Application.Discovery.DiscoveryApplicationService>();
 builder.Services.AddScoped<OrganizationAdministrationService>();
+builder.Services.AddScoped<DraftRecoveryApplicationService>();
+builder.Services.AddScoped<IDraftRecoveryCoordinator>(services => services.GetRequiredService<DraftRecoveryApplicationService>());
 builder.Services.AddScoped<MembershipObservationService>();
 builder.Services.AddSingleton(new CurrentOrganization(
     new OrganizationId(builder.Configuration["Organization:Id"]!)));
