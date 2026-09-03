@@ -1,11 +1,13 @@
 using AdrCampus.Application.Administration;
 using AdrCampus.Application.Drafts;
 using AdrCampus.Application.Identity;
+using AdrCampus.Application.Membership;
 using AdrCampus.Application.Proposals;
 using AdrCampus.Core.Administration;
 using AdrCampus.Core.Domain;
 using AdrCampus.Core.Drafts;
 using AdrCampus.Core.Discovery;
+using AdrCampus.Core.Membership;
 using AdrCampus.Core.Proposals;
 using AdrCampus.Providers.Drafts.InMemory;
 using AdrCampus.Providers.Drafts.Workbench;
@@ -102,12 +104,15 @@ builder.Services.AddSingleton<IDraftRepository, WorkbenchDraftRepository>();
 builder.Services.AddSingleton<IProposalRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
 builder.Services.AddSingleton<ISharedRecordRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
 builder.Services.AddSingleton<IOrganizationAdministrationRepository, WorkbenchOrganizationAdministrationRepository>();
+builder.Services.AddSingleton<IMembershipRepository, WorkbenchMembershipRepository>();
 builder.Services.AddScoped<IMemberAuthority, KeycloakMemberAuthority>();
 builder.Services.AddScoped<AdrCampus.Application.Identity.IMemberDisplayNameDirectory, KeycloakMemberDisplayNameDirectory>();
+builder.Services.AddScoped<IDirectoryRosterSource, KeycloakDirectoryRosterSource>();
 builder.Services.AddScoped<DraftApplicationService>();
 builder.Services.AddScoped<ProposalApplicationService>();
 builder.Services.AddScoped<AdrCampus.Application.Discovery.DiscoveryApplicationService>();
 builder.Services.AddScoped<OrganizationAdministrationService>();
+builder.Services.AddScoped<MembershipObservationService>();
 builder.Services.AddSingleton(new CurrentOrganization(
     new OrganizationId(builder.Configuration["Organization:Id"]!)));
 builder.Services.AddSingleton(new OrganizationBootstrapConfiguration(

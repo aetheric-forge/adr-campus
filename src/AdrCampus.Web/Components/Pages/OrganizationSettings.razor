@@ -2,12 +2,14 @@
 @attribute [Authorize(Policy = IdentityPolicies.ActiveMaintainer)]
 @using System.Security.Claims
 @using AdrCampus.Application.Administration
+@using AdrCampus.Application.Membership
 @using AdrCampus.Core.Administration
 @using AdrCampus.Core.Domain
 @using AdrCampus.Web.Drafts
 @using AdrCampus.Web.Identity
 @using AdrCampus.Web.Members
 @inject OrganizationAdministrationService Administration
+@inject MembershipObservationService Observation
 @inject OrganizationBootstrapHealth BootstrapHealth
 @inject OrganizationDisplayState OrganizationDisplay
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -34,6 +36,16 @@ else if (_state is null)
 }
 else
 {
+    @if (_membership is { IsAvailable: true, HasActiveMaintainer: false })
+    {
+        <section class="placeholder-panel roster-message roster-error" role="alert">
+            <span class="roster-status-icon" aria-hidden="true">!</span>
+            <div>
+                <h2>No active Maintainer</h2>
+                <p>No enabled identity currently belongs to both the member and maintainer groups. Ask a deployment operator to correct the SSO groups.</p>
+            </div>
+        </section>
+    }
     <section class="form-placeholder">
         @if (!string.IsNullOrWhiteSpace(_message))
         {
@@ -64,6 +76,7 @@ else
     private bool _saving;
     private bool _saved;
     private OperationId _operationId = OperationId.New();
+    private MembershipSyncResult? _membership;
 
     protected override async Task OnInitializedAsync()
     {
@@ -73,6 +86,7 @@ else
             var subjectId = authentication.User.FindFirst("sub")?.Value;
             if (string.IsNullOrWhiteSpace(subjectId)) { _message = "Your signed-in identity could not be established."; return; }
             _maintainer = new(subjectId);
+            _membership = await Observation.SynchronizeAsync(Organization.Id);
             var result = await Administration.GetAsync(Organization.Id, _maintainer);
             _state = result.State;
             _displayName = _state?.DisplayName.Value ?? string.Empty;

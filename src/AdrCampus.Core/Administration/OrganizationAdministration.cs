@@ -69,5 +69,5 @@ public sealed class OrganizationAdministrationConcurrencyException(long expected
     public long CurrentVersion { get; } = currentVersion;
 }
 
-public enum AdministrationEventType { OrganizationBootstrapped, OrganizationRenamed }
-public sealed record AdministrationEvent(Guid Id, OrganizationId OrganizationId, AdministrationEventType Type, DateTimeOffset OccurredAtUtc, string Source, MemberId? ActorId = null, string? PreviousValue = null, string? NewValue = null);
+public enum AdministrationEventType { OrganizationBootstrapped, OrganizationRenamed, MemberAdded, MemberRemoved, MaintainerGranted, MaintainerRevoked, MemberDisplayNameChanged }
+public sealed record AdministrationEvent(Guid Id, OrganizationId OrganizationId, AdministrationEventType Type, DateTimeOffset OccurredAtUtc, string Source, MemberId? ActorId = null, string? PreviousValue = null, string? NewValue = null, MemberId? SubjectId = null);
