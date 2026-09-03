@@ -135,6 +135,24 @@ public sealed class DraftApplicationServiceTests
         Assert.Equal(accepted.Id, Assert.Single(result.Targets).Id);
     }
 
+    [Fact]
+    public async Task ExpiredDraftIsTreatedAsNotFoundForGetListAndRevise()
+    {
+        var repository = new InMemoryDraftRepository();
+        var service = new DraftApplicationService(repository, new StubSharedRecordRepository([]), new StubMemberAuthority(true), new FixedTimeProvider(Now));
+        var expired = AdrDraft.Create(AdrId.New(), Organization, Author, new DraftContent("Choose a database"), Now.AddDays(-40))
+            .StartRecovery(Now.AddDays(-31), Now.AddDays(-31));
+        await repository.CreateAsync(expired, OperationId.New());
+
+        var got = await service.GetMineAsync(Organization, Author, expired.Id);
+        var listed = await service.ListMineAsync(Organization, Author);
+        var revised = await service.ReviseAsync(new ReviseDraftCommand(expired.Id, OperationId.New(), Organization, Author, expired.Version, "New title", null, null, null));
+
+        Assert.Equal(GetDraftStatus.NotFound, got.Status);
+        Assert.Empty(listed.Drafts);
+        Assert.Equal(ReviseDraftStatus.NotFound, revised.Status);
+    }
+
     private static DraftApplicationService CreateService(bool isMember, params AdrProposal[] records) => new(
         new InMemoryDraftRepository(),
         new StubSharedRecordRepository(records),

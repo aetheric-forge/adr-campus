@@ -81,7 +81,8 @@ public sealed class DraftApplicationService(
             organizationId,
             authorId,
             cancellationToken).ConfigureAwait(false);
-        return DraftListResult.Success(drafts);
+        var now = timeProvider.GetUtcNow();
+        return DraftListResult.Success(drafts.Where(draft => !draft.IsExpired(now)).ToArray());
     }
 
     public async Task<GetDraftResult> GetMineAsync(
@@ -103,7 +104,7 @@ public sealed class DraftApplicationService(
             authorId,
             draftId,
             cancellationToken).ConfigureAwait(false);
-        return draft is null ? GetDraftResult.NotFound() : GetDraftResult.Success(draft);
+        return draft is null || draft.IsExpired(timeProvider.GetUtcNow()) ? GetDraftResult.NotFound() : GetDraftResult.Success(draft);
     }
 
     public async Task<ReviseDraftResult> ReviseAsync(
@@ -116,7 +117,7 @@ public sealed class DraftApplicationService(
             return ReviseDraftResult.Unauthorized();
         }
         var current = await repository.GetByAuthorAsync(command.OrganizationId, command.AuthorId, command.DraftId, cancellationToken).ConfigureAwait(false);
-        if (current is null) return ReviseDraftResult.NotFound();
+        if (current is null || current.IsExpired(timeProvider.GetUtcNow())) return ReviseDraftResult.NotFound();
         if (current.Version != command.ExpectedVersion) return ReviseDraftResult.Conflict(current);
         DraftContent content;
         try { content = new DraftContent(command.Title, command.Context, command.Decision, command.Consequences); }

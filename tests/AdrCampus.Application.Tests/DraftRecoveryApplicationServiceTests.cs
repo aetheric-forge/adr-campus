@@ -51,6 +51,22 @@ public sealed class DraftRecoveryApplicationServiceTests
     }
 
     [Fact]
+    public async Task ReturningMemberCannotRestoreAnExpiredDraft()
+    {
+        var expired = MakeDraft().StartRecovery(Now.AddDays(-1), Now.AddDays(-31));
+        var repository = new StubDraftRecoveryRepository();
+        repository.Drafts[expired.Id.Value] = expired;
+        var drafts = new StubDraftRepository(FormerAuthor, [Summary(expired)]);
+        var service = Create(drafts, repository);
+
+        await service.CancelRecoveryForReturningMemberAsync(Organization, FormerAuthor, Now);
+
+        Assert.NotNull(repository.Drafts[expired.Id.Value].RecoveryDeadlineUtc);
+        Assert.Equal(FormerAuthor, repository.Drafts[expired.Id.Value].AuthorId);
+        Assert.Empty(repository.Events);
+    }
+
+    [Fact]
     public async Task ListEligibleRequiresMaintainerAndResolvesFormerAuthorNames()
     {
         var eligible = MakeDraft().StartRecovery(Now.AddDays(30), Now);
@@ -195,6 +211,7 @@ public sealed class DraftRecoveryApplicationServiceTests
         {
             if (!Drafts.TryGetValue(draftId.Value, out var current)) return Task.FromResult(new RecoveryWriteResult(RecoveryWriteStatus.NotFound, null));
             if (current.AuthorId != authorId) return Task.FromResult(new RecoveryWriteResult(RecoveryWriteStatus.Conflict, current));
+            if (current.IsExpired(administrationEvent.OccurredAtUtc)) return Task.FromResult(new RecoveryWriteResult(RecoveryWriteStatus.Expired, current));
             if (current.RecoveryDeadlineUtc is null) return Task.FromResult(new RecoveryWriteResult(RecoveryWriteStatus.AlreadyApplied, current));
             if (current.Version != expectedVersion) return Task.FromResult(new RecoveryWriteResult(RecoveryWriteStatus.Conflict, current));
             var next = current.CancelRecovery(administrationEvent.OccurredAtUtc);

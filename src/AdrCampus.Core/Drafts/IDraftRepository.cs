@@ -37,7 +37,11 @@ public sealed record DraftSummary(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset ModifiedAtUtc,
     long Version,
-    AdrId? IntendedSupersessionTargetId = null);
+    AdrId? IntendedSupersessionTargetId = null,
+    DateTimeOffset? RecoveryDeadlineUtc = null)
+{
+    public bool IsExpired(DateTimeOffset now) => RecoveryDeadlineUtc is not null && now >= RecoveryDeadlineUtc;
+}
 
 public enum DraftWriteStatus
 {

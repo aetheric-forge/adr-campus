@@ -18,7 +18,7 @@ public interface IDraftRecoveryRepository
     Task<IReadOnlyList<AdministrationEvent>> ListRecoveryEventsAsync(OrganizationId organizationId, CancellationToken cancellationToken = default);
 }
 
-public enum RecoveryWriteStatus { Applied, AlreadyApplied, Conflict, NotFound }
+public enum RecoveryWriteStatus { Applied, AlreadyApplied, Conflict, NotFound, Expired }
 public sealed record RecoveryWriteResult(RecoveryWriteStatus Status, AdrDraft? Draft);
 
 public sealed record RecoveryEligibleDraft(AdrId Id, DraftTitle Title, MemberId FormerAuthorId, DateTimeOffset ExpiresAtUtc, long Version);
