@@ -1,0 +1,119 @@
+@page "/administration/settings"
+@attribute [Authorize(Policy = IdentityPolicies.ActiveMaintainer)]
+@using System.Security.Claims
+@using AdrCampus.Application.Administration
+@using AdrCampus.Application.Membership
+@using AdrCampus.Core.Administration
+@using AdrCampus.Core.Domain
+@using AdrCampus.Web.Drafts
+@using AdrCampus.Web.Identity
+@using AdrCampus.Web.Members
+@inject OrganizationAdministrationService Administration
+@inject MembershipObservationService Observation
+@inject OrganizationBootstrapHealth BootstrapHealth
+@inject OrganizationDisplayState OrganizationDisplay
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject CurrentOrganization Organization
+
+<PageTitle>Organization settings</PageTitle>
+
+<div class="page-header">
+    <div>
+        <span class="eyebrow">Administration</span>
+        <h1>Organization settings</h1>
+        <p>Manage the ADR Campus display name. Membership and authority remain controlled by SSO.</p>
+    </div>
+    <a class="button button-secondary" href="administration">Administration</a>
+</div>
+
+@if (_loading)
+{
+    <section class="placeholder-panel"><h2>Loading organization</h2><p>Reading the current administration record…</p></section>
+}
+else if (_state is null)
+{
+    <section class="placeholder-panel" role="alert"><h2>Settings unavailable</h2><p>@(_message ?? "The organization has not been initialized.")</p></section>
+}
+else
+{
+    @if (_membership is { IsAvailable: true, HasActiveMaintainer: false })
+    {
+        <section class="placeholder-panel roster-message roster-error" role="alert">
+            <span class="roster-status-icon" aria-hidden="true">!</span>
+            <div>
+                <h2>No active Maintainer</h2>
+                <p>No enabled identity currently belongs to both the member and maintainer groups. Ask a deployment operator to correct the SSO groups.</p>
+            </div>
+        </section>
+    }
+    <section class="form-placeholder">
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <div class="form-message @(_saved ? "form-success" : "form-error")" role="@(_saved ? "status" : "alert")">@_message</div>
+        }
+        <label for="organization-name">Organization display name <span>3–100 characters</span></label>
+        <input id="organization-name" maxlength="100" @bind="_displayName" aria-invalid="@(!_saved && _message is not null)" />
+        <div class="form-actions">
+            <button class="button button-primary" type="button" @onclick="SaveAsync" disabled="@_saving">@(_saving ? "Saving…" : "Save name")</button>
+        </div>
+    </section>
+
+    <section class="placeholder-panel organization-authority" aria-labelledby="sso-configuration-heading">
+        <div><span class="eyebrow">Read only</span><h2 id="sso-configuration-heading">SSO configuration</h2><p>These values establish the organization boundary and can only be changed by a deployment operator.</p></div>
+        <div><h2>Stable organization identity</h2><p><code>@_state.OrganizationId.Value</code></p></div>
+        <div><h2>SSO authority</h2><p>@_state.SsoAuthority</p></div>
+        <div><h2>Member group</h2><p><code>@_state.MemberGroupReference</code></p></div>
+        <div><h2>Maintainer group</h2><p><code>@_state.MaintainerGroupReference</code></p></div>
+    </section>
+}
+
+@code {
+    private OrganizationAdministrationState? _state;
+    private MemberId? _maintainer;
+    private string _displayName = string.Empty;
+    private string? _message;
+    private bool _loading = true;
+    private bool _saving;
+    private bool _saved;
+    private OperationId _operationId = OperationId.New();
+    private MembershipSyncResult? _membership;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var subjectId = authentication.User.FindFirst("sub")?.Value;
+            if (string.IsNullOrWhiteSpace(subjectId)) { _message = "Your signed-in identity could not be established."; return; }
+            _maintainer = new(subjectId);
+            _membership = await Observation.SynchronizeAsync(Organization.Id);
+            var result = await Administration.GetAsync(Organization.Id, _maintainer);
+            _state = result.State;
+            _displayName = _state?.DisplayName.Value ?? string.Empty;
+            if (result.Status == GetOrganizationAdministrationStatus.Unauthorized) _message = "Current organization membership could not be established.";
+            else if (result.Status == GetOrganizationAdministrationStatus.NotInitialized)
+                _message = BootstrapHealth.Result?.ErrorMessage ?? "The organization has not been initialized. Ask a deployment operator to verify the SSO configuration.";
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving || _state is null || _maintainer is null) return;
+        _saving = true; _message = null; _saved = false;
+        try
+        {
+            var result = await Administration.RenameAsync(new(Organization.Id, _maintainer, _state.Version, _displayName, _operationId));
+            _state = result.State ?? _state;
+            if (result.IsSuccess)
+            {
+                _displayName = _state.DisplayName.Value;
+                _message = result.Status == RenameOrganizationStatus.Unchanged ? "The organization name is unchanged." : "Organization name saved.";
+                OrganizationDisplay.Set(_state.DisplayName.Value);
+                _saved = true; _operationId = OperationId.New();
+            }
+            else _message = result.ErrorMessage ?? "The organization name could not be saved.";
+        }
+        finally { _saving = false; }
+    }
+}

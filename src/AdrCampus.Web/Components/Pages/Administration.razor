@@ -1,10 +1,109 @@
 @page "/administration"
 @attribute [Authorize(Policy = IdentityPolicies.ActiveMaintainer)]
+@using System.Security.Claims
+@using AdrCampus.Application.Maintenance
+@using AdrCampus.Application.Membership
+@using AdrCampus.Core.Domain
+@using AdrCampus.Core.Maintenance
+@using AdrCampus.Web.Drafts
 @using AdrCampus.Web.Identity
+@inject MembershipObservationService Observation
+@inject MaintenanceApplicationService Maintenance
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject CurrentOrganization Organization
 <PageTitle>Administration</PageTitle>
 <div class="page-header"><div><span class="eyebrow">Maintainer</span><h1>Administration</h1><p>Organization settings, application history, and draft recovery.</p></div></div>
+@if (_result is { IsAvailable: true, HasActiveMaintainer: false })
+{
+    <section class="placeholder-panel roster-message roster-error" role="alert">
+        <span class="roster-status-icon" aria-hidden="true">!</span>
+        <div>
+            <h2>No active Maintainer</h2>
+            <p>No enabled identity currently belongs to both the member and maintainer groups. Maintainer-only actions are unavailable until a deployment operator corrects the SSO groups.</p>
+        </div>
+    </section>
+}
 <div class="card-grid">
     <a class="feature-card" href="administration/recovery"><span class="card-kicker">Draft recovery</span><h2>Recover drafts</h2><p>Reassign private drafts whose authors have left the organization.</p></a>
-    <div class="feature-card"><span class="card-kicker">Organization</span><h2>Settings</h2><p>Manage the organization display name and view configured SSO mappings.</p></div>
-    <div class="feature-card"><span class="card-kicker">Audit</span><h2>Administration history</h2><p>Review application-owned membership and recovery events.</p></div>
+    <a class="feature-card" href="administration/settings"><span class="card-kicker">Organization</span><h2>Settings</h2><p>Manage the organization display name and view configured SSO authority.</p></a>
+    <a class="feature-card" href="administration/history"><span class="card-kicker">Audit</span><h2>Administration history</h2><p>Review application-owned membership and recovery events.</p></a>
 </div>
+
+<section class="form-placeholder">
+    <div><span class="eyebrow">Maintenance</span><h2>Expired draft purge</h2><p>Removes expired, unreassigned drafts from storage. Content is never exposed by this action; a maintainer only ever sees the run outcome.</p></div>
+    @if (_maintenanceMessage is not null)
+    {
+        <div class="form-message @(_maintenanceSucceeded ? "form-success" : "form-error")" role="@(_maintenanceSucceeded ? "status" : "alert")">@_maintenanceMessage</div>
+    }
+    @if (_lastRun is not null)
+    {
+        <p>
+            <strong>Last run:</strong>
+            @if (_lastRun.Outcome is { } outcome)
+            {
+                @($"{outcome.Status} at {outcome.OccurredAtUtc.ToLocalTime():MMM d, yyyy 'at' h:mm tt} — {outcome.ProcessedCount} purged")
+                if (outcome.RemainingCount > 0)
+                {
+                    <text> (@outcome.RemainingCount remaining)</text>
+                }
+            }
+            else
+            {
+                <text>requested, not yet processed</text>
+            }
+        </p>
+    }
+    <div class="form-actions">
+        <button class="button button-primary" type="button" disabled="@_purging" @onclick="RunPurgeAsync">@(_purging ? "Requesting…" : "Run purge now")</button>
+    </div>
+</section>
+
+@code {
+    private MembershipSyncResult? _result;
+    private MemberId? _maintainer;
+    private MaintenanceRunRecord? _lastRun;
+    private bool _purging;
+    private string? _maintenanceMessage;
+    private bool _maintenanceSucceeded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _result = await Observation.SynchronizeAsync(Organization.Id);
+        var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var subjectId = authentication.User.FindFirst("sub")?.Value;
+        if (!string.IsNullOrWhiteSpace(subjectId))
+        {
+            _maintainer = new(subjectId);
+            await LoadLastRunAsync();
+        }
+    }
+
+    private async Task LoadLastRunAsync()
+    {
+        if (_maintainer is null) return;
+        var runs = await Maintenance.ListRunsAsync(Organization.Id, _maintainer);
+        _lastRun = runs.Runs.FirstOrDefault();
+    }
+
+    private async Task RunPurgeAsync()
+    {
+        if (_purging || _maintainer is null) return;
+        _purging = true; _maintenanceMessage = null;
+        try
+        {
+            var result = await Maintenance.RequestPurgeAsync(Organization.Id, _maintainer);
+            if (result.IsAuthorized)
+            {
+                _maintenanceSucceeded = true;
+                _maintenanceMessage = "Purge requested. The background worker will process it shortly.";
+                await LoadLastRunAsync();
+            }
+            else
+            {
+                _maintenanceSucceeded = false;
+                _maintenanceMessage = "Current Maintainer authority could not be established.";
+            }
+        }
+        finally { _purging = false; }
+    }
+}
