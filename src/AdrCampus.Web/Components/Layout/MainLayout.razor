@@ -1,20 +1,14 @@
 @inherits LayoutComponentBase
 @using System.Security.Claims
 @using AdrCampus.Web.Members
-@using AdrCampus.Application.Administration
-@using AdrCampus.Core.Domain
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject MemberRosterService RosterService
-@inject OrganizationAdministrationService Administration
-@inject AdrCampus.Web.Drafts.CurrentOrganization Organization
-@inject OrganizationDisplayState OrganizationDisplay
-@implements IDisposable
 
 <div class="page">
     <aside class="sidebar"><NavMenu IsMaintainer="_isMaintainer" ViewAsMember="_viewAsMember" /></aside>
     <main>
         <header class="top-row">
-            <div class="organization"><span class="organization-label">Organization</span><strong>@_organizationName</strong></div>
+            <div class="organization"><span class="organization-label">Organization</span><strong>Aetheric Forge</strong></div>
             <AuthorizeView>
                 <Authorized Context="authentication">
                     <div class="account" aria-label="Signed-in account">
@@ -44,7 +38,6 @@
 @code {
     private bool _isMaintainer;
     private bool _viewAsMember;
-    private string _organizationName = "Organization";
 
     private string RoleLabel => _isMaintainer
         ? _viewAsMember ? "Maintainer · Viewing as member" : "Maintainer"
@@ -52,22 +45,14 @@
 
     protected override async Task OnInitializedAsync()
     {
-        OrganizationDisplay.Changed += OnOrganizationNameChanged;
         var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var subjectId = authentication.User.FindFirst("sub")?.Value;
         if (!string.IsNullOrWhiteSpace(subjectId))
         {
             var membership = await RosterService.GetMembershipAsync(subjectId);
             _isMaintainer = membership.IsAvailable && membership.IsMaintainer;
-            var organization = await Administration.GetDisplayAsync(Organization.Id, new MemberId(subjectId));
-            if (organization.DisplayName is not null) _organizationName = organization.DisplayName.Value;
         }
     }
-
-    private void OnOrganizationNameChanged(string displayName) =>
-        _ = InvokeAsync(() => { _organizationName = displayName; StateHasChanged(); });
-
-    public void Dispose() => OrganizationDisplay.Changed -= OnOrganizationNameChanged;
 
     private void ToggleMemberView() => _viewAsMember = !_viewAsMember;
 
