@@ -1,10 +1,33 @@
 @page "/administration"
 @attribute [Authorize(Policy = IdentityPolicies.ActiveMaintainer)]
+@using AdrCampus.Application.Membership
+@using AdrCampus.Web.Drafts
 @using AdrCampus.Web.Identity
+@inject MembershipObservationService Observation
+@inject CurrentOrganization Organization
 <PageTitle>Administration</PageTitle>
 <div class="page-header"><div><span class="eyebrow">Maintainer</span><h1>Administration</h1><p>Organization settings, application history, and draft recovery.</p></div></div>
+@if (_result is { IsAvailable: true, HasActiveMaintainer: false })
+{
+    <section class="placeholder-panel roster-message roster-error" role="alert">
+        <span class="roster-status-icon" aria-hidden="true">!</span>
+        <div>
+            <h2>No active Maintainer</h2>
+            <p>No enabled identity currently belongs to both the member and maintainer groups. Maintainer-only actions are unavailable until a deployment operator corrects the SSO groups.</p>
+        </div>
+    </section>
+}
 <div class="card-grid">
     <a class="feature-card" href="administration/recovery"><span class="card-kicker">Draft recovery</span><h2>Recover drafts</h2><p>Reassign private drafts whose authors have left the organization.</p></a>
-    <div class="feature-card"><span class="card-kicker">Organization</span><h2>Settings</h2><p>Manage the organization display name and view configured SSO mappings.</p></div>
+    <a class="feature-card" href="administration/settings"><span class="card-kicker">Organization</span><h2>Settings</h2><p>Manage the organization display name and view configured SSO authority.</p></a>
     <div class="feature-card"><span class="card-kicker">Audit</span><h2>Administration history</h2><p>Review application-owned membership and recovery events.</p></div>
 </div>
+
+@code {
+    private MembershipSyncResult? _result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _result = await Observation.SynchronizeAsync(Organization.Id);
+    }
+}

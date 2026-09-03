@@ -121,4 +121,76 @@ public sealed class AdrDraftTests
     {
         Assert.Throws<ArgumentException>(() => AdrDraft.Create(DraftId, OrganizationId, AuthorId, new DraftContent("Replace database decision"), CreatedAt, DraftId));
     }
+
+    [Fact]
+    public void StartRecoverySetsDeadlineAndAdvancesVersion()
+    {
+        var draft = AdrDraft.Create(DraftId, OrganizationId, AuthorId, new DraftContent("Choose a database"), CreatedAt);
+        var deadline = CreatedAt.AddDays(30);
+
+        var inRecovery = draft.StartRecovery(deadline, CreatedAt.AddMinutes(5));
+
+        Assert.Equal(deadline, inRecovery.RecoveryDeadlineUtc);
+        Assert.Equal(2, inRecovery.Version);
+        Assert.Equal(AuthorId, inRecovery.AuthorId);
+        Assert.False(draft.IsExpired(CreatedAt));
+    }
+
+    [Fact]
+    public void StartRecoveryRejectsADraftAlreadyInRecovery()
+    {
+        var draft = AdrDraft.Create(DraftId, OrganizationId, AuthorId, new DraftContent("Choose a database"), CreatedAt)
+            .StartRecovery(CreatedAt.AddDays(30), CreatedAt.AddMinutes(1));
+
+        Assert.Throws<InvalidOperationException>(() => draft.StartRecovery(CreatedAt.AddDays(60), CreatedAt.AddMinutes(2)));
+    }
+
+    [Fact]
+    public void CancelRecoveryIsIdempotentAndClearsTheDeadline()
+    {
+        var draft = AdrDraft.Create(DraftId, OrganizationId, AuthorId, new DraftContent("Choose a database"), CreatedAt);
+        var inRecovery = draft.StartRecovery(CreatedAt.AddDays(30), CreatedAt.AddMinutes(1));
+
+        var cancelled = inRecovery.CancelRecovery(CreatedAt.AddMinutes(2));
+        var noOp = draft.CancelRecovery(CreatedAt.AddMinutes(3));
+
+        Assert.Null(cancelled.RecoveryDeadlineUtc);
+        Assert.Equal(3, cancelled.Version);
+        Assert.Same(draft, noOp);
+    }
+
+    [Fact]
+    public void ReassignChangesAuthorAndClearsRecoveryWhilePreservingContent()
+    {
+        var newAuthor = new MemberId("keycloak-subject-2");
+        var draft = AdrDraft.Create(DraftId, OrganizationId, AuthorId, new DraftContent("Choose a database", "Context", "Decision", "Consequences"), CreatedAt)
+            .StartRecovery(CreatedAt.AddDays(30), CreatedAt.AddMinutes(1));
+
+        var reassigned = draft.Reassign(newAuthor, CreatedAt.AddMinutes(2));
+
+        Assert.Equal(newAuthor, reassigned.AuthorId);
+        Assert.Null(reassigned.RecoveryDeadlineUtc);
+        Assert.Equal(draft.Id, reassigned.Id);
+        Assert.Equal(draft.CreatedAtUtc, reassigned.CreatedAtUtc);
+        Assert.Equal(draft.Content, reassigned.Content);
+        Assert.Equal(3, reassigned.Version);
+    }
+
+    [Fact]
+    public void ReassignRequiresAnOpenRecoveryWindow()
+    {
+        var draft = AdrDraft.Create(DraftId, OrganizationId, AuthorId, new DraftContent("Choose a database"), CreatedAt);
+        Assert.Throws<InvalidOperationException>(() => draft.Reassign(new MemberId("keycloak-subject-2"), CreatedAt.AddMinutes(1)));
+    }
+
+    [Fact]
+    public void IsExpiredComparesAgainstTheDeadline()
+    {
+        var draft = AdrDraft.Create(DraftId, OrganizationId, AuthorId, new DraftContent("Choose a database"), CreatedAt)
+            .StartRecovery(CreatedAt.AddDays(30), CreatedAt.AddMinutes(1));
+
+        Assert.False(draft.IsExpired(CreatedAt.AddDays(29)));
+        Assert.True(draft.IsExpired(CreatedAt.AddDays(30)));
+        Assert.True(draft.IsExpired(CreatedAt.AddDays(31)));
+    }
 }
