@@ -2,7 +2,6 @@ using AdrCampus.Core.Administration;
 using AdrCampus.Core.Domain;
 using AdrCampus.Core.Drafts;
 using AdrCampus.Providers.Drafts.Workbench;
-using AethericForge.Runtime.Providers.Staging.InMemory;
 
 namespace AdrCampus.Providers.Drafts.Workbench.Tests;
 
@@ -22,8 +21,8 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task StartRecoveryIsAtomicVersionedAndIdempotent()
     {
-        var staging = new InMemoryStagingProvider("recovery");
-        var repository = new WorkbenchDraftRepository(staging);
+        var staging = WorkbenchTestSupport.NewStagingProvider();
+        var repository = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
         var draft = Draft();
         await repository.CreateAsync(draft, OperationId.New());
         var deadline = Now.AddDays(30);
@@ -40,8 +39,8 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task CancelRecoveryIsIdempotentAndPreservesOrdinaryAccess()
     {
-        var staging = new InMemoryStagingProvider("recovery");
-        var repository = new WorkbenchDraftRepository(staging);
+        var staging = WorkbenchTestSupport.NewStagingProvider();
+        var repository = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
         var draft = Draft();
         await repository.CreateAsync(draft, OperationId.New());
         var started = await repository.StartRecoveryAsync(Organization, draft.Id, FormerAuthor, draft.Version, Now.AddDays(30), Event(AdministrationEventType.DraftRecoveryStarted, Now, draft.Id));
@@ -58,8 +57,8 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task CancelRecoveryRefusesAnExpiredWindowAndDoesNotRestoreAccess()
     {
-        var staging = new InMemoryStagingProvider("recovery");
-        var repository = new WorkbenchDraftRepository(staging);
+        var staging = WorkbenchTestSupport.NewStagingProvider();
+        var repository = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
         var draft = Draft();
         await repository.CreateAsync(draft, OperationId.New());
         var started = await repository.StartRecoveryAsync(Organization, draft.Id, FormerAuthor, draft.Version, Now.AddDays(-1), Event(AdministrationEventType.DraftRecoveryStarted, Now.AddDays(-31), draft.Id));
@@ -75,8 +74,8 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task ListEligibleExcludesUnrelatedAndExpiredDrafts()
     {
-        var staging = new InMemoryStagingProvider("recovery");
-        var repository = new WorkbenchDraftRepository(staging);
+        var staging = WorkbenchTestSupport.NewStagingProvider();
+        var repository = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
         var eligible = Draft();
         var expired = Draft();
         var neverStarted = Draft();
@@ -96,8 +95,8 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task ReassignIsAtomicVersionedIdempotentAndPreservesContent()
     {
-        var staging = new InMemoryStagingProvider("recovery");
-        var repository = new WorkbenchDraftRepository(staging);
+        var staging = WorkbenchTestSupport.NewStagingProvider();
+        var repository = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
         var draft = Draft();
         await repository.CreateAsync(draft, OperationId.New());
         var started = await repository.StartRecoveryAsync(Organization, draft.Id, FormerAuthor, draft.Version, Now.AddDays(30), Event(AdministrationEventType.DraftRecoveryStarted, Now, draft.Id));
@@ -105,7 +104,7 @@ public sealed class WorkbenchDraftRecoveryTests
         var evt = Event(AdministrationEventType.DraftReassigned, Now.AddHours(1), draft.Id, FormerAuthor.Value, NewAuthor.Value);
 
         var first = await repository.ReassignAsync(Organization, draft.Id, FormerAuthor, NewAuthor, started.Draft!.Version, Now.AddHours(1), evt, operation);
-        var retry = await new WorkbenchDraftRepository(staging).ReassignAsync(Organization, draft.Id, FormerAuthor, NewAuthor, started.Draft!.Version, Now.AddHours(1), evt, operation);
+        var retry = await new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging)).ReassignAsync(Organization, draft.Id, FormerAuthor, NewAuthor, started.Draft!.Version, Now.AddHours(1), evt, operation);
 
         Assert.Equal(ReassignDraftStatus.Reassigned, first.Status);
         Assert.Equal(ReassignDraftStatus.AlreadyApplied, retry.Status);
@@ -121,8 +120,8 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task OnlyOneOfTwoConcurrentReassignmentsWins()
     {
-        var staging = new InMemoryStagingProvider("recovery");
-        var repository = new WorkbenchDraftRepository(staging);
+        var staging = WorkbenchTestSupport.NewStagingProvider();
+        var repository = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
         var draft = Draft();
         await repository.CreateAsync(draft, OperationId.New());
         var started = await repository.StartRecoveryAsync(Organization, draft.Id, FormerAuthor, draft.Version, Now.AddDays(30), Event(AdministrationEventType.DraftRecoveryStarted, Now, draft.Id));
@@ -140,8 +139,8 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task ReassignRejectsAnExpiredWindow()
     {
-        var staging = new InMemoryStagingProvider("recovery");
-        var repository = new WorkbenchDraftRepository(staging);
+        var staging = WorkbenchTestSupport.NewStagingProvider();
+        var repository = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
         var draft = Draft();
         await repository.CreateAsync(draft, OperationId.New());
         var started = await repository.StartRecoveryAsync(Organization, draft.Id, FormerAuthor, draft.Version, Now.AddDays(-1), Event(AdministrationEventType.DraftRecoveryStarted, Now.AddDays(-31), draft.Id));
@@ -154,8 +153,8 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task ListExpiredReturnsOnlyExpiredUnreassignedDraftsBoundedByBatchSize()
     {
-        var staging = new InMemoryStagingProvider("recovery");
-        var repository = new WorkbenchDraftRepository(staging);
+        var staging = WorkbenchTestSupport.NewStagingProvider();
+        var repository = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
         var expired1 = Draft();
         var expired2 = Draft();
         var notExpired = Draft();
@@ -178,8 +177,8 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task PurgeBatchRemovesContentButRetainsAnExpirationEvent()
     {
-        var staging = new InMemoryStagingProvider("recovery");
-        var repository = new WorkbenchDraftRepository(staging);
+        var staging = WorkbenchTestSupport.NewStagingProvider();
+        var repository = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
         var expired = Draft();
         var notExpired = Draft();
         await repository.CreateAsync(expired, OperationId.New());
@@ -200,8 +199,8 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task PurgingAnAlreadyPurgedDraftIsANoOp()
     {
-        var staging = new InMemoryStagingProvider("recovery");
-        var repository = new WorkbenchDraftRepository(staging);
+        var staging = WorkbenchTestSupport.NewStagingProvider();
+        var repository = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
         var expired = Draft();
         await repository.CreateAsync(expired, OperationId.New());
         await repository.StartRecoveryAsync(Organization, expired.Id, FormerAuthor, expired.Version, Now.AddDays(-1), Event(AdministrationEventType.DraftRecoveryStarted, Now.AddDays(-31), expired.Id));
@@ -217,13 +216,13 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task PurgeStateAndEventsSurviveRepositoryRecomposition()
     {
-        var staging = new InMemoryStagingProvider("recovery");
+        var staging = WorkbenchTestSupport.NewStagingProvider();
         var expired = Draft();
-        await new WorkbenchDraftRepository(staging).CreateAsync(expired, OperationId.New());
-        await new WorkbenchDraftRepository(staging).StartRecoveryAsync(Organization, expired.Id, FormerAuthor, expired.Version, Now.AddDays(-1), Event(AdministrationEventType.DraftRecoveryStarted, Now.AddDays(-31), expired.Id));
-        await new WorkbenchDraftRepository(staging).PurgeBatchAsync(Organization, [expired.Id], Now);
+        await new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging)).CreateAsync(expired, OperationId.New());
+        await new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging)).StartRecoveryAsync(Organization, expired.Id, FormerAuthor, expired.Version, Now.AddDays(-1), Event(AdministrationEventType.DraftRecoveryStarted, Now.AddDays(-31), expired.Id));
+        await new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging)).PurgeBatchAsync(Organization, [expired.Id], Now);
 
-        var recomposed = new WorkbenchDraftRepository(staging);
+        var recomposed = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
 
         Assert.Null(await recomposed.GetByAuthorAsync(Organization, FormerAuthor, expired.Id));
         Assert.Empty(await recomposed.ListEligibleAsync(Organization, Now));
@@ -233,12 +232,12 @@ public sealed class WorkbenchDraftRecoveryTests
     [Fact]
     public async Task RecoveryStateAndEventsSurviveRepositoryRecomposition()
     {
-        var staging = new InMemoryStagingProvider("recovery");
+        var staging = WorkbenchTestSupport.NewStagingProvider();
         var draft = Draft();
-        await new WorkbenchDraftRepository(staging).CreateAsync(draft, OperationId.New());
-        await new WorkbenchDraftRepository(staging).StartRecoveryAsync(Organization, draft.Id, FormerAuthor, draft.Version, Now.AddDays(30), Event(AdministrationEventType.DraftRecoveryStarted, Now, draft.Id));
+        await new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging)).CreateAsync(draft, OperationId.New());
+        await new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging)).StartRecoveryAsync(Organization, draft.Id, FormerAuthor, draft.Version, Now.AddDays(30), Event(AdministrationEventType.DraftRecoveryStarted, Now, draft.Id));
 
-        var recomposed = new WorkbenchDraftRepository(staging);
+        var recomposed = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
         var eligible = await recomposed.ListEligibleAsync(Organization, Now);
         var events = await recomposed.ListRecoveryEventsAsync(Organization);
 
