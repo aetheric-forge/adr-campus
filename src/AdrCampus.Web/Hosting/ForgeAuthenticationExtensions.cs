@@ -40,7 +40,7 @@ public static class ForgeAuthenticationExtensions
             .AddOpenIdConnect(options =>
             {
                 var keycloak = configuration.GetSection("Keycloak");
-                options.Authority = keycloak["Authority"];
+                options.Authority = $"{keycloak["Authority"]}/realms/{keycloak["Realm"]}";
                 options.ClientId = keycloak["ClientId"];
                 options.ClientSecret = keycloak["ClientSecret"];
                 options.ResponseType = "code";
