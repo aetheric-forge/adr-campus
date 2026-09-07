@@ -43,7 +43,10 @@ builder.Services.AddScoped<IAuthorizationHandler, ActiveMaintainerAuthorizationH
 builder.Services.AddForgeCampus(builder.Configuration);
 
 builder.Services.AddHttpClient(MemberRosterService.HttpClientName);
-builder.Services.AddScoped<MemberRosterService>();
+// Singleton so its roster cache is shared across every circuit/request instead of being rebuilt per
+// scope - all its dependencies (IHttpClientFactory, IConfiguration, ILogger<T>, TimeProvider) are
+// singleton-safe.
+builder.Services.AddSingleton<MemberRosterService>();
 builder.Services.AddScoped<IOrganizationBootstrapVerifier, KeycloakOrganizationBootstrapVerifier>();
 builder.Services.AddSingleton<OrganizationBootstrapHealth>();
 builder.Services.AddScoped<OrganizationDisplayState>();
