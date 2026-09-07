@@ -14,11 +14,32 @@
     <ProjectReference Include="..\AdrCampus.Core\AdrCampus.Core.csproj" />
     <ProjectReference Include="..\AdrCampus.Providers.Drafts.InMemory\AdrCampus.Providers.Drafts.InMemory.csproj" />
     <ProjectReference Include="..\AdrCampus.Providers.Drafts.Workbench\AdrCampus.Providers.Drafts.Workbench.csproj" />
+    <ProjectReference Include="..\AdrCampus.Providers.Library\AdrCampus.Providers.Library.csproj" />
+    <ProjectReference Include="..\AdrCampus.Providers.Archive\AdrCampus.Providers.Archive.csproj" />
+    <ProjectReference Include="..\AdrCampus.Providers.PostOffice\AdrCampus.Providers.PostOffice.csproj" />
     <ProjectReference Include="..\..\runtime\src\Providers\AethericForge.Runtime.Providers.Staging.InMemory\AethericForge.Runtime.Providers.Staging.InMemory.csproj" />
     <ProjectReference Include="..\..\runtime\src\Providers\AethericForge.Runtime.Providers.Staging.Redis\AethericForge.Runtime.Providers.Staging.Redis.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Providers\AethericForge.Runtime.Providers.Archive.InMemory\AethericForge.Runtime.Providers.Archive.InMemory.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Providers\AethericForge.Runtime.Providers.Knowledge.InMemory\AethericForge.Runtime.Providers.Knowledge.InMemory.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Providers\AethericForge.Runtime.Providers.Post.InMemory\AethericForge.Runtime.Providers.Post.InMemory.csproj" />
     <ProjectReference Include="..\..\runtime\src\Abstractions\Interfaces\AethericForge.Runtime.Abstractions.Interfaces\AethericForge.Runtime.Abstractions.Interfaces.csproj" />
     <ProjectReference Include="..\..\runtime\src\Models\AethericForge.Runtime.Models\AethericForge.Runtime.Models.csproj" />
     <ProjectReference Include="..\..\runtime\src\Providers\AethericForge.Runtime.Providers.Identity.Keycloak\AethericForge.Runtime.Providers.Identity.Keycloak.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Abstractions\AethericForge.Runtime.Institutions.Abstractions.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Campus\AethericForge.Runtime.Institutions.Campus.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Registry\AethericForge.Runtime.Institutions.Registry.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Library\AethericForge.Runtime.Institutions.Library.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Archive\AethericForge.Runtime.Institutions.Archive.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Workbench\AethericForge.Runtime.Institutions.Workbench.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.PostOffice\AethericForge.Runtime.Institutions.PostOffice.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Identity\AethericForge.Runtime.Services.Identity.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Registry\AethericForge.Runtime.Services.Registry.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Archive\AethericForge.Runtime.Services.Archive.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Knowledge\AethericForge.Runtime.Services.Knowledge.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Library\AethericForge.Runtime.Services.Library.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Staging\AethericForge.Runtime.Services.Staging.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Workbench\AethericForge.Runtime.Services.Workbench.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Post\AethericForge.Runtime.Services.Post.csproj" />
   </ItemGroup>
 
 </Project>
