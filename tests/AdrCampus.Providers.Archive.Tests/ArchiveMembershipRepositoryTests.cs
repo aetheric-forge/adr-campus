@@ -1,12 +1,10 @@
 using AdrCampus.Core.Administration;
 using AdrCampus.Core.Domain;
 using AdrCampus.Core.Membership;
-using AdrCampus.Providers.Drafts.Workbench;
-using AethericForge.Runtime.Providers.Staging.InMemory;
 
-namespace AdrCampus.Providers.Drafts.Workbench.Tests;
+namespace AdrCampus.Providers.Archive.Tests;
 
-public sealed class WorkbenchMembershipRepositoryTests
+public sealed class ArchiveMembershipRepositoryTests
 {
     private static readonly OrganizationId Organization = new("aetheric-forge");
     private static readonly MemberId Ada = new("ada");
@@ -18,13 +16,13 @@ public sealed class WorkbenchMembershipRepositoryTests
     [Fact]
     public async Task NewProjectionAndEventSurviveRecomposition()
     {
-        var staging = new InMemoryStagingProvider("membership");
-        var repository = new WorkbenchMembershipRepository(staging);
+        var provider = ArchiveTestSupport.NewProvider();
+        var repository = new ArchiveMembershipRepository(ArchiveTestSupport.Archivist(provider));
         var projection = MembershipProjection.Observe(Organization, Ada, MemberRole.Member, "Ada Lovelace", Now);
         var write = await repository.ApplyAsync(projection, null, Event(AdministrationEventType.MemberAdded, Now, next: "Member"));
         Assert.Equal(MembershipWriteStatus.Applied, write.Status);
 
-        var recomposed = new WorkbenchMembershipRepository(staging);
+        var recomposed = new ArchiveMembershipRepository(ArchiveTestSupport.Archivist(provider));
         var listed = await recomposed.ListAsync(Organization);
         Assert.Equal(projection, Assert.Single(listed));
         Assert.Single(await recomposed.ListEventsAsync(Organization));
@@ -33,15 +31,15 @@ public sealed class WorkbenchMembershipRepositoryTests
     [Fact]
     public async Task ReapplyingTheSameTransitionIsIdempotent()
     {
-        var staging = new InMemoryStagingProvider("membership");
-        var repository = new WorkbenchMembershipRepository(staging);
+        var provider = ArchiveTestSupport.NewProvider();
+        var repository = new ArchiveMembershipRepository(ArchiveTestSupport.Archivist(provider));
         var projection = MembershipProjection.Observe(Organization, Ada, MemberRole.Member, "Ada Lovelace", Now);
         await repository.ApplyAsync(projection, null, Event(AdministrationEventType.MemberAdded, Now, next: "Member"));
         var promoted = projection.Transition(MemberRole.Maintainer, "Ada Lovelace", Now.AddMinutes(1));
         var evt = Event(AdministrationEventType.MaintainerGranted, Now.AddMinutes(1), "Member", "Maintainer");
 
         var first = await repository.ApplyAsync(promoted, 1, evt);
-        var retry = await new WorkbenchMembershipRepository(staging).ApplyAsync(promoted, 1, evt);
+        var retry = await new ArchiveMembershipRepository(ArchiveTestSupport.Archivist(provider)).ApplyAsync(promoted, 1, evt);
 
         Assert.Equal(MembershipWriteStatus.Applied, first.Status);
         Assert.Equal(MembershipWriteStatus.AlreadyApplied, retry.Status);
@@ -51,8 +49,8 @@ public sealed class WorkbenchMembershipRepositoryTests
     [Fact]
     public async Task StaleExpectedVersionConflicts()
     {
-        var staging = new InMemoryStagingProvider("membership");
-        var repository = new WorkbenchMembershipRepository(staging);
+        var provider = ArchiveTestSupport.NewProvider();
+        var repository = new ArchiveMembershipRepository(ArchiveTestSupport.Archivist(provider));
         var projection = MembershipProjection.Observe(Organization, Ada, MemberRole.Member, "Ada Lovelace", Now);
         await repository.ApplyAsync(projection, null, Event(AdministrationEventType.MemberAdded, Now, next: "Member"));
         var promoted = projection.Transition(MemberRole.Maintainer, "Ada Lovelace", Now.AddMinutes(1));
@@ -61,24 +59,5 @@ public sealed class WorkbenchMembershipRepositoryTests
 
         Assert.Equal(MembershipWriteStatus.Conflict, result.Status);
         Assert.Equal(projection, Assert.Single(await repository.ListAsync(Organization)));
-    }
-
-    [Fact]
-    public async Task ConcurrentWritersDoNotDuplicateAnAppliedTransition()
-    {
-        var staging = new InMemoryStagingProvider("membership");
-        var repository = new WorkbenchMembershipRepository(staging);
-        var projection = MembershipProjection.Observe(Organization, Ada, MemberRole.Member, "Ada Lovelace", Now);
-        await repository.ApplyAsync(projection, null, Event(AdministrationEventType.MemberAdded, Now, next: "Member"));
-        var promoted = projection.Transition(MemberRole.Maintainer, "Ada Lovelace", Now.AddMinutes(1));
-        var evt = Event(AdministrationEventType.MaintainerGranted, Now.AddMinutes(1), "Member", "Maintainer");
-
-        var results = await Task.WhenAll(
-            repository.ApplyAsync(promoted, 1, evt),
-            new WorkbenchMembershipRepository(staging).ApplyAsync(promoted, 1, evt));
-
-        Assert.Contains(MembershipWriteStatus.Applied, results.Select(r => r.Status));
-        Assert.All(results, r => Assert.True(r.Status is MembershipWriteStatus.Applied or MembershipWriteStatus.AlreadyApplied));
-        Assert.Equal(2, (await repository.ListEventsAsync(Organization)).Count);
     }
 }

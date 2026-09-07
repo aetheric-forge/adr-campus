@@ -29,6 +29,18 @@ public interface IDraftRepository
         long expectedPersistedVersion,
         OperationId operationId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes a draft that has been consumed by another institution (for example, published as a
+    /// proposal into Library). Returns false if the draft is missing or the version no longer matches,
+    /// which the caller treats as a best-effort cleanup rather than a hard failure.
+    /// </summary>
+    Task<bool> RemoveAsync(
+        OrganizationId organizationId,
+        MemberId authorId,
+        AdrId draftId,
+        long expectedVersion,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record DraftSummary(

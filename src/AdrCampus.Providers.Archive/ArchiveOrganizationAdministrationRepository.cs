@@ -1,21 +1,28 @@
-using System.Text.Json;
+using System.Collections.Concurrent;
 using AdrCampus.Core.Administration;
 using AdrCampus.Core.Domain;
-using AethericForge.Runtime.Abstractions.Interfaces.Staging.Primitives;
-using AethericForge.Runtime.Abstractions.Interfaces.Staging.Providers;
-using AethericForge.Runtime.Models.Staging;
+using AethericForge.Runtime.Abstractions.Interfaces.Archive.Services;
+using AethericForge.Runtime.Models.Archive.Primitives;
 
-namespace AdrCampus.Providers.Drafts.Workbench;
+namespace AdrCampus.Providers.Archive;
 
-public sealed class WorkbenchOrganizationAdministrationRepository(IStagingProvider staging) : IOrganizationAdministrationRepository
+/// <summary>
+/// Stores organization administration state and its event history as a single Archive object, using the
+/// Archive institution's typed <see cref="AethericForge.Runtime.Abstractions.Interfaces.Archive.Services.IArchivist"/>
+/// instead of a raw staging blob. IArchivist has no distributed lock primitive, so writes are serialized
+/// with an in-process semaphore keyed by store/key; this is weaker than the Redis-backed lock the previous
+/// single-blob implementation used, but preserves every conflict/idempotency rule below.
+/// </summary>
+public sealed class ArchiveOrganizationAdministrationRepository(IArchivist archivist) : IOrganizationAdministrationRepository
 {
-    private const string CatalogKey = "adr-campus/administration/catalog-v1";
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    private IStagingReference Reference => new StagingReference(staging.Stage, CatalogKey);
+    private const string Store = "adr-campus";
+    private const string Key = "administration/catalog-v1";
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.Ordinal);
+    private static readonly ArchiveReference Reference = new(Store, Key);
 
     public async Task<OrganizationAdministrationState?> GetAsync(OrganizationId organizationId, CancellationToken cancellationToken = default)
     {
-        var catalog = await ReadAsync(cancellationToken);
+        var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
         var record = catalog.Organizations.FirstOrDefault(value => value.OrganizationId == organizationId.Value);
         return record is null ? null : ToDomain(record);
     }
@@ -52,29 +59,36 @@ public sealed class WorkbenchOrganizationAdministrationRepository(IStagingProvid
 
     public async Task<IReadOnlyList<AdministrationEvent>> ListEventsAsync(OrganizationId organizationId, CancellationToken cancellationToken = default)
     {
-        var catalog = await ReadAsync(cancellationToken);
+        var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
         return catalog.Events.Where(value => value.OrganizationId == organizationId.Value)
             .OrderBy(value => value.OccurredAtUtc).ThenBy(value => value.Id).Select(ToDomain).ToArray();
     }
 
     private async Task<OrganizationAdministrationWriteResult> WriteAsync(OperationId operationId, OperationKind kind, OrganizationAdministrationState requestedState, long? expectedVersion, AdministrationEvent administrationEvent, Func<Catalog, OrganizationAdministrationWriteResult> apply, CancellationToken cancellationToken)
     {
-        await using var handle = await staging.AcquireLockAsync(Reference, TimeSpan.FromMinutes(1), cancellationToken);
-        if (!handle.IsAcquired) throw new InvalidOperationException("Organization administration is busy. Retry the operation.");
-        var catalog = await ReadAsync(cancellationToken);
-        var requested = new OperationRecord(operationId.Value, kind, FromDomain(requestedState), expectedVersion, administrationEvent.ActorId?.Value);
-        var prior = catalog.Operations.FirstOrDefault(value => value.Id == operationId.Value);
-        if (prior is not null)
-            return SameRequest(prior, requested)
-                ? new(OrganizationAdministrationWriteStatus.AlreadyApplied, ToDomain(prior.State))
-                : new(OrganizationAdministrationWriteStatus.OperationMismatch, null);
-        var result = apply(catalog);
-        if (result.Status is OrganizationAdministrationWriteStatus.Created or OrganizationAdministrationWriteStatus.Saved)
+        var gate = GetLock();
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            catalog.Operations.Add(requested);
-            await SaveAsync(catalog, cancellationToken);
+            var catalog = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            var requested = new OperationRecord(operationId.Value, kind, FromDomain(requestedState), expectedVersion, administrationEvent.ActorId?.Value);
+            var prior = catalog.Operations.FirstOrDefault(value => value.Id == operationId.Value);
+            if (prior is not null)
+                return SameRequest(prior, requested)
+                    ? new(OrganizationAdministrationWriteStatus.AlreadyApplied, ToDomain(prior.State))
+                    : new(OrganizationAdministrationWriteStatus.OperationMismatch, null);
+            var result = apply(catalog);
+            if (result.Status is OrganizationAdministrationWriteStatus.Created or OrganizationAdministrationWriteStatus.Saved)
+            {
+                catalog.Operations.Add(requested);
+                await SaveAsync(catalog, cancellationToken).ConfigureAwait(false);
+            }
+            return result;
         }
-        return result;
+        finally
+        {
+            gate.Release();
+        }
     }
 
     private static bool SameRequest(OperationRecord left, OperationRecord right) =>
@@ -86,19 +100,13 @@ public sealed class WorkbenchOrganizationAdministrationRepository(IStagingProvid
         left.State.MaintainerGroupReference == right.State.MaintainerGroupReference &&
         left.State.Version == right.State.Version && left.ActorId == right.ActorId;
 
-    private async Task<Catalog> ReadAsync(CancellationToken cancellationToken)
-    {
-        if (!await staging.ExistsAsync(Reference, cancellationToken)) return new();
-        await using var stream = await staging.OpenReadAsync(Reference, cancellationToken);
-        return await JsonSerializer.DeserializeAsync<Catalog>(stream, Json, cancellationToken) ?? new();
-    }
+    private static SemaphoreSlim GetLock() => Locks.GetOrAdd($"{Store}/{Key}", static _ => new SemaphoreSlim(1, 1));
 
-    private async Task SaveAsync(Catalog catalog, CancellationToken cancellationToken)
-    {
-        using var stream = new MemoryStream();
-        await JsonSerializer.SerializeAsync(stream, catalog, Json, cancellationToken); stream.Position = 0;
-        await staging.PutAsync(CatalogKey, stream, new StagingMetadata(contentType: "application/json", lastModifiedUtc: DateTimeOffset.UtcNow), cancellationToken);
-    }
+    private async Task<Catalog> ReadAsync(CancellationToken cancellationToken) =>
+        await archivist.GetAsync<Catalog>(Reference, cancellationToken).ConfigureAwait(false) ?? new Catalog();
+
+    private async Task SaveAsync(Catalog catalog, CancellationToken cancellationToken) =>
+        await archivist.PutAsync(Store, Key, catalog, "application/json", cancellationToken).ConfigureAwait(false);
 
     private static OrganizationRecord FromDomain(OrganizationAdministrationState value) => new(value.OrganizationId.Value, value.DisplayName.Value, value.SsoAuthority, value.MemberGroupReference, value.MaintainerGroupReference, value.InitializedAtUtc, value.ModifiedAtUtc, value.Version);
     private static OrganizationAdministrationState ToDomain(OrganizationRecord value) => OrganizationAdministrationState.Restore(new(value.OrganizationId), new(value.DisplayName), value.SsoAuthority, value.MemberGroupReference, value.MaintainerGroupReference, value.InitializedAtUtc, value.ModifiedAtUtc, value.Version);

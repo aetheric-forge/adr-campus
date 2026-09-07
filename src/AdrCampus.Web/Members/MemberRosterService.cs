@@ -7,9 +7,19 @@ namespace AdrCampus.Web.Members;
 public sealed class MemberRosterService(
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
-    ILogger<MemberRosterService> logger)
+    ILogger<MemberRosterService> logger,
+    TimeProvider timeProvider)
 {
     public const string HttpClientName = "KeycloakDirectory";
+
+    // Every AuthorizeView/[Authorize] check calls through here, and Blazor Server re-evaluates those far
+    // more often than the roster actually changes (page navigation, re-renders, cascading auth state).
+    // Without this cache, each of those was a fresh pair of Keycloak Admin API round trips, which was slow
+    // enough in practice to trip the client's circuit-reconnect UI. Only successful lookups are cached -
+    // failures are retried every time, consistent with "fail closed, never show stale membership" below.
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    private MemberRosterResult? _cachedResult;
+    private DateTimeOffset _cachedAtUtc;
 
     public async Task<bool> IsActiveMemberAsync(
         string subjectId,
@@ -42,6 +52,50 @@ public sealed class MemberRosterService(
     }
 
     public async Task<MemberRosterResult> GetCurrentAsync(CancellationToken cancellationToken = default)
+    {
+        var freshnessLifetime = configuration.GetSection("Keycloak").Get<KeycloakOptions>()?.DirectoryFreshnessLifetime
+            ?? TimeSpan.FromMinutes(1);
+
+        if (TryGetFreshCache(freshnessLifetime, out var cached))
+        {
+            return cached;
+        }
+
+        await _refreshLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (TryGetFreshCache(freshnessLifetime, out cached))
+            {
+                return cached;
+            }
+
+            var result = await FetchCurrentAsync(cancellationToken).ConfigureAwait(false);
+            if (result.IsAvailable)
+            {
+                _cachedResult = result;
+                _cachedAtUtc = timeProvider.GetUtcNow();
+            }
+            return result;
+        }
+        finally
+        {
+            _refreshLock.Release();
+        }
+    }
+
+    private bool TryGetFreshCache(TimeSpan freshnessLifetime, out MemberRosterResult result)
+    {
+        if (_cachedResult is not null && timeProvider.GetUtcNow() - _cachedAtUtc < freshnessLifetime)
+        {
+            result = _cachedResult;
+            return true;
+        }
+
+        result = null!;
+        return false;
+    }
+
+    private async Task<MemberRosterResult> FetchCurrentAsync(CancellationToken cancellationToken)
     {
         try
         {

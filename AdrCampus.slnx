@@ -4,6 +4,9 @@
     <Project Path="src/AdrCampus.Core/AdrCampus.Core.csproj" />
     <Project Path="src/AdrCampus.Providers.Drafts.InMemory/AdrCampus.Providers.Drafts.InMemory.csproj" />
     <Project Path="src/AdrCampus.Providers.Drafts.Workbench/AdrCampus.Providers.Drafts.Workbench.csproj" />
+    <Project Path="src/AdrCampus.Providers.Library/AdrCampus.Providers.Library.csproj" />
+    <Project Path="src/AdrCampus.Providers.Archive/AdrCampus.Providers.Archive.csproj" />
+    <Project Path="src/AdrCampus.Providers.PostOffice/AdrCampus.Providers.PostOffice.csproj" />
     <Project Path="src/AdrCampus.Web/AdrCampus.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -11,5 +14,8 @@
     <Project Path="tests/AdrCampus.Core.Tests/AdrCampus.Core.Tests.csproj" />
     <Project Path="tests/AdrCampus.Providers.Drafts.InMemory.Tests/AdrCampus.Providers.Drafts.InMemory.Tests.csproj" />
     <Project Path="tests/AdrCampus.Providers.Drafts.Workbench.Tests/AdrCampus.Providers.Drafts.Workbench.Tests.csproj" />
+    <Project Path="tests/AdrCampus.Providers.Library.Tests/AdrCampus.Providers.Library.Tests.csproj" />
+    <Project Path="tests/AdrCampus.Providers.Archive.Tests/AdrCampus.Providers.Archive.Tests.csproj" />
+    <Project Path="tests/AdrCampus.Providers.PostOffice.Tests/AdrCampus.Providers.PostOffice.Tests.csproj" />
   </Folder>
 </Solution>

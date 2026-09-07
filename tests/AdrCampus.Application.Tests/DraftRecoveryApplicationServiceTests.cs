@@ -188,6 +188,7 @@ public sealed class DraftRecoveryApplicationServiceTests
         public Task<IReadOnlyList<DraftSummary>> ListByAuthorAsync(OrganizationId organizationId, MemberId authorId, CancellationToken cancellationToken = default) =>
             Task.FromResult(authorId == author ? drafts : (IReadOnlyList<DraftSummary>)[]);
         public Task<DraftWriteResult> SaveRevisionAsync(AdrDraft draft, long expectedPersistedVersion, OperationId operationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> RemoveAsync(OrganizationId organizationId, MemberId authorId, AdrId draftId, long expectedVersion, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class StubDraftRecoveryRepository : IDraftRecoveryRepository

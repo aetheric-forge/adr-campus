@@ -130,6 +130,32 @@ public sealed class InMemoryDraftRepository : IDraftRepository
         }
     }
 
+    public Task<bool> RemoveAsync(
+        OrganizationId organizationId,
+        MemberId authorId,
+        AdrId draftId,
+        long expectedVersion,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(organizationId);
+        ArgumentNullException.ThrowIfNull(authorId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            var key = new DraftKey(organizationId, draftId);
+            if (!_drafts.TryGetValue(key, out var current) ||
+                current.AuthorId != authorId ||
+                current.Version != expectedVersion)
+            {
+                return Task.FromResult(false);
+            }
+
+            _drafts.Remove(key);
+            return Task.FromResult(true);
+        }
+    }
+
     private bool TryReplay(
         OperationId operationId,
         AppliedOperation requested,

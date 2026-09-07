@@ -4,30 +4,16 @@ using AdrCampus.Application.Identity;
 using AdrCampus.Application.Maintenance;
 using AdrCampus.Application.Membership;
 using AdrCampus.Application.Proposals;
-using AdrCampus.Core.Administration;
 using AdrCampus.Core.Domain;
-using AdrCampus.Core.Drafts;
-using AdrCampus.Core.Discovery;
 using AdrCampus.Core.Maintenance;
-using AdrCampus.Core.Membership;
-using AdrCampus.Core.Proposals;
 using AdrCampus.Providers.Drafts.InMemory;
-using AdrCampus.Providers.Drafts.Workbench;
-using AethericForge.Runtime.Abstractions.Interfaces.Staging.Providers;
-using AethericForge.Runtime.Providers.Staging.InMemory;
-using AethericForge.Runtime.Providers.Staging.Redis;
-using StackExchange.Redis;
 using AdrCampus.Web.Components;
 using AdrCampus.Web.Drafts;
+using AdrCampus.Web.Hosting;
 using AdrCampus.Web.Identity;
 using AdrCampus.Web.Maintenance;
 using AdrCampus.Web.Members;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 ValidateOrganizationDirectoryConfiguration(builder.Configuration);
@@ -36,42 +22,8 @@ ValidateOrganizationDirectoryConfiguration(builder.Configuration);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddCascadingAuthenticationState();
-builder.Services
-    .AddAuthentication(options =>
-    {
-        options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
-    })
-    .AddCookie(options =>
-    {
-        options.Cookie.Name = "__Host-AdrCampus";
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.LoginPath = "/account/login";
-        options.AccessDeniedPath = "/account/access-denied";
-    })
-    .AddOpenIdConnect(options =>
-    {
-        var keycloak = builder.Configuration.GetSection("Keycloak");
-        options.Authority = keycloak["Authority"];
-        options.ClientId = keycloak["ClientId"];
-        options.ClientSecret = keycloak["ClientSecret"];
-        options.ResponseType = "code";
-        options.UsePkce = true;
-        options.MapInboundClaims = false;
-        options.GetClaimsFromUserInfoEndpoint = true;
-        // Keycloak requires the original ID token as id_token_hint for RP-initiated logout.
-        // The authentication ticket is protected and stored in the secure, HTTP-only cookie.
-        options.SaveTokens = true;
-        options.CallbackPath = "/signin-oidc";
-        options.SignedOutCallbackPath = "/signout-callback-oidc";
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            NameClaimType = "name",
-            RoleClaimType = "role"
-        };
-    });
+
+builder.Services.AddForgeCampusAuthentication(builder.Configuration);
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(IdentityPolicies.ActiveMember, policy =>
@@ -87,30 +39,19 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddScoped<IAuthorizationHandler, ActiveMemberAuthorizationHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, ActiveMaintainerAuthorizationHandler>();
+
+builder.Services.AddForgeCampus(builder.Configuration);
+
 builder.Services.AddHttpClient(MemberRosterService.HttpClientName);
-builder.Services.AddScoped<MemberRosterService>();
+// Singleton so its roster cache is shared across every circuit/request instead of being rebuilt per
+// scope - all its dependencies (IHttpClientFactory, IConfiguration, ILogger<T>, TimeProvider) are
+// singleton-safe.
+builder.Services.AddSingleton<MemberRosterService>();
 builder.Services.AddScoped<IOrganizationBootstrapVerifier, KeycloakOrganizationBootstrapVerifier>();
 builder.Services.AddSingleton<OrganizationBootstrapHealth>();
 builder.Services.AddScoped<OrganizationDisplayState>();
 builder.Services.AddSingleton(TimeProvider.System);
-var redisConnection = builder.Configuration.GetConnectionString("Redis");
-if (string.IsNullOrWhiteSpace(redisConnection))
-{
-    builder.Services.AddSingleton<IStagingProvider>(_ => new InMemoryStagingProvider("adr-campus-workbench"));
-}
-else
-{
-    builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));
-    builder.Services.AddSingleton<IStagingProvider>(services => new RedisStagingProvider(services.GetRequiredService<IConnectionMultiplexer>(), "adr-campus-workbench"));
-}
-builder.Services.AddSingleton<IDraftRepository, WorkbenchDraftRepository>();
-builder.Services.AddSingleton<IProposalRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
-builder.Services.AddSingleton<ISharedRecordRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
-builder.Services.AddSingleton<IDraftRecoveryRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
-builder.Services.AddSingleton<IExpiredDraftPurgeRepository>(services => (WorkbenchDraftRepository)services.GetRequiredService<IDraftRepository>());
-builder.Services.AddSingleton<IOrganizationAdministrationRepository, WorkbenchOrganizationAdministrationRepository>();
-builder.Services.AddSingleton<IMembershipRepository, WorkbenchMembershipRepository>();
-builder.Services.AddSingleton<IMaintenancePostOffice, WorkbenchMaintenancePostOffice>();
+
 builder.Services.AddSingleton<IMaintenanceWorker, ExpiredDraftPurgeWorker>();
 builder.Services.AddHostedService<MaintenanceDispatchService>();
 builder.Services.AddScoped<IMemberAuthority, KeycloakMemberAuthority>();
@@ -161,25 +102,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
-app.MapGet("/account/login", (string? returnUrl) =>
-    Results.Challenge(
-        new AuthenticationProperties { RedirectUri = LocalReturnUrl(returnUrl) },
-        [OpenIdConnectDefaults.AuthenticationScheme]))
-    .AllowAnonymous();
-app.MapPost("/account/logout", async (HttpContext context, IAntiforgery antiforgery) =>
-{
-    await antiforgery.ValidateRequestAsync(context);
-    return Results.SignOut(
-        new AuthenticationProperties { RedirectUri = "/" },
-        [CookieAuthenticationDefaults.AuthenticationScheme, OpenIdConnectDefaults.AuthenticationScheme]);
-})
-    .RequireAuthorization();
-app.MapGet("/account/access-denied", () => Results.Content(
-    "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Access denied</title></head>" +
-    "<body><main><h1>Access denied</h1><p>Your Keycloak identity is not an active ADR Campus member.</p>" +
-    "<a href=\"/account/login\">Sign in with another account</a></main></body></html>",
-    "text/html"))
-    .AllowAnonymous();
+app.MapForgeCampusAuthentication();
+app.MapForgeCampusDiagnostics();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
@@ -187,13 +111,6 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
-
-static string LocalReturnUrl(string? returnUrl) =>
-    !string.IsNullOrWhiteSpace(returnUrl) &&
-    returnUrl.StartsWith("/", StringComparison.Ordinal) &&
-    !returnUrl.StartsWith("//", StringComparison.Ordinal)
-        ? returnUrl
-        : "/";
 
 static void ValidateOrganizationDirectoryConfiguration(IConfiguration configuration)
 {
