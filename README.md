@@ -8,7 +8,8 @@ The [product goal, roles, and lifecycle](docs/stories/overview.md) are authorita
 
 ADR Campus requires:
 
-- a Keycloak realm with a configured client, and member/maintainer groups; and
+- a Keycloak realm with a configured client, and member/maintainer groups;
+- a MongoDB instance for durable Archive and Library storage; and
 - a Redis instance for durable Workbench storage (optional — the app falls back to in-memory staging when `ConnectionStrings:Redis` is unset, which does not survive a restart).
 
 Configure these with [.NET user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets) against `src/AdrCampus.Web`:
@@ -23,6 +24,12 @@ dotnet user-secrets set "Keycloak:ClientSecret" "<client-secret>"
 # overriding if the Admin REST API is reachable at a different host/path than the realm itself.
 dotnet user-secrets set "Organization:MemberGroupId" "<group-id-or-exact-name>"
 dotnet user-secrets set "Organization:MaintainerGroupId" "<group-id-or-exact-name>"
+dotnet user-secrets set "MongoDb:Host" "<host>"
+dotnet user-secrets set "MongoDb:Port" "<port>"
+dotnet user-secrets set "MongoDb:Username" "<username>"
+dotnet user-secrets set "MongoDb:Password" "<password>"
+dotnet user-secrets set "MongoDb:DatabaseName" "<database-name>"
+dotnet user-secrets set "MongoDb:AuthenticationDatabase" "<authentication-database>"
 dotnet user-secrets set "ConnectionStrings:Redis" "<host>:<port>[,password=...]"
 ```
 

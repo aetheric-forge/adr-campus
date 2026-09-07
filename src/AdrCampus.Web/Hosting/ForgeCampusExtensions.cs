@@ -31,9 +31,9 @@ using AethericForge.Runtime.Institutions.Workbench;
 using AethericForge.Runtime.Models.Archive.Serialization;
 using AethericForge.Runtime.Models.Authorities;
 using AethericForge.Runtime.Models.Post;
-using AethericForge.Runtime.Providers.Archive.InMemory;
+using AethericForge.Runtime.Providers.Archive.MongoDb;
 using AethericForge.Runtime.Providers.Identity.Keycloak;
-using AethericForge.Runtime.Providers.Knowledge.InMemory;
+using AethericForge.Runtime.Providers.Knowledge.MongoDb;
 using AethericForge.Runtime.Providers.Post.InMemory;
 using AethericForge.Runtime.Providers.Staging.InMemory;
 using AethericForge.Runtime.Providers.Staging.Redis;
@@ -46,6 +46,7 @@ using AethericForge.Runtime.Services.Post;
 using AethericForge.Runtime.Services.Registry;
 using AethericForge.Runtime.Services.Staging;
 using AethericForge.Runtime.Services.Workbench;
+using MongoDB.Driver;
 using StackExchange.Redis;
 
 namespace AdrCampus.Web.Hosting;
@@ -54,15 +55,49 @@ namespace AdrCampus.Web.Hosting;
 /// Composes the ADR Campus onto a real <see cref="ICampus"/> made up of the Registry, Library, Workbench,
 /// Archive, and Post Office institutions, mirroring the pattern used by the ParallelYou host
 /// (ParallelYou.Web/Hosting/ForgeCampusExtensions.cs). ADR Campus does not need ParallelYou's "Person"
-/// concept, and uses in-memory/Redis-backed providers rather than MongoDB, since it has no such
-/// dependency today.
+/// concept. Archive and Library are MongoDB-backed, like aetheric-web/parallel-you; Post Office
+/// (maintenance command custody) stays in-memory since it models point-to-point envelope dispatch, not
+/// durable knowledge - a message broker is a bigger and separate infra decision from this one.
 /// </summary>
 public static class ForgeCampusExtensions
 {
     private const string WorkbenchStage = "adr-campus-workbench";
-    private const string ArchiveStore = "adr-campus";
+    private const string ArchiveStore = "MongoDb";
+    private const string ArchiveCollection = "archive";
     private const string KnowledgeScheme = "adr-campus";
+    private const string KnowledgeCollection = "knowledge";
     private const string MaintenanceDomain = "adr-campus-maintenance";
+
+    private static string BuildMongoUri(IConfiguration configuration)
+    {
+        var host = GetRequiredSetting(configuration, "MongoDb:Host");
+        var username = GetRequiredSetting(configuration, "MongoDb:Username");
+        var password = GetRequiredSetting(configuration, "MongoDb:Password");
+        var databaseName = GetRequiredSetting(configuration, "MongoDb:DatabaseName");
+        var authenticationDatabase = GetRequiredSetting(configuration, "MongoDb:AuthenticationDatabase");
+        var port = configuration.GetValue<int?>("MongoDb:Port")
+                   ?? throw new InvalidOperationException("MongoDb:Port is required.");
+
+        var builder = new MongoUrlBuilder
+        {
+            Server = new MongoServerAddress(host, port),
+            Username = username,
+            Password = password,
+            DatabaseName = databaseName,
+            AuthenticationSource = authenticationDatabase,
+            DirectConnection = configuration.GetValue("MongoDb:DirectConnection", true)
+        };
+
+        return builder.ToMongoUrl().ToString();
+    }
+
+    private static string GetRequiredSetting(IConfiguration configuration, string key)
+    {
+        var value = configuration[key];
+        return !string.IsNullOrWhiteSpace(value)
+            ? value
+            : throw new InvalidOperationException($"{key} is required.");
+    }
 
     public static IServiceCollection AddForgeCampus(this IServiceCollection services, IConfiguration configuration)
     {
@@ -92,14 +127,24 @@ public static class ForgeCampusExtensions
                 .With<ITeam<IRegistryClerk>>(_ => new Team<IRegistryClerk>(Array.Empty<IRegistryClerk>()))
                 .With<IRegistrar, Registrar>()
                 // Archive
-                .With<IArchiveProvider>(_ => new InMemoryArchiveProvider(ArchiveStore))
+                .With<IMongoClient>(sp => new MongoClient(BuildMongoUri(sp.GetRequiredService<IConfiguration>())))
+                .With<IMongoDatabase>(sp => sp
+                    .GetRequiredService<IMongoClient>()
+                    .GetDatabase(GetRequiredSetting(sp.GetRequiredService<IConfiguration>(), "MongoDb:DatabaseName")))
+                .With<IArchiveProvider>(sp => new MongoDbArchiveProvider(
+                    sp.GetRequiredService<IMongoDatabase>(),
+                    ArchiveStore,
+                    ArchiveCollection))
                 .With<IArchiveVault, ArchiveVault>()
                 .With<IArchiveService, ArchiveService>()
                 .With<IArchiveSerializer, JsonArchiveSerializer>()
                 .With<ITeam<IArchiveClerk>>(_ => new Team<IArchiveClerk>(Array.Empty<IArchiveClerk>()))
                 .With<IArchivist, Archivist>()
                 // Knowledge / Library
-                .With<IKnowledgeProvider>(_ => new InMemoryKnowledgeProvider(KnowledgeScheme))
+                .With<IKnowledgeProvider>(sp => new MongoDbKnowledgeProvider(
+                    sp.GetRequiredService<IMongoDatabase>(),
+                    KnowledgeScheme,
+                    KnowledgeCollection))
                 .With<IKnowledgeService, KnowledgeService>()
                 .With<ITeam<ICuratorClerk>>(_ => new Team<ICuratorClerk>(Array.Empty<ICuratorClerk>()))
                 .With<ICurator, Curator>()
