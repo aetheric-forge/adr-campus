@@ -62,7 +62,11 @@ namespace AdrCampus.Web.Hosting;
 public static class ForgeCampusExtensions
 {
     private const string WorkbenchStage = "adr-campus-workbench";
-    private const string ArchiveStore = "MongoDb";
+    // Must match the "adr-campus" store constant hardcoded independently in
+    // AdrCampus.Providers.Archive.ArchiveOrganizationAdministrationRepository/ArchiveMembershipRepository -
+    // it's just a lookup key ArchiveService uses to find the right provider, unrelated to which
+    // technology backs it.
+    private const string ArchiveStore = "adr-campus";
     private const string ArchiveCollection = "archive";
     private const string KnowledgeScheme = "adr-campus";
     private const string KnowledgeCollection = "knowledge";
