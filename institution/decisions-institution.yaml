@@ -5,7 +5,7 @@
 # initialState). There is no YAML loader in aetheric-runtime today - this is a plain data artifact for
 # your provisioner. If aetheric-runtime should consume this format directly later, the natural next step
 # is a small deserializer that walks this document and calls InstitutionTemplateBuilder, the same builder
-# DecisionsInstitutionFactory.Template already uses in code.
+# DecisionsOrganizationFactory.Template already uses in code.
 #
 # Per runtime/docs/specs/institution.md §7/§10 ("the runtime determines how capabilities are realized" /
 # "the Institution SHALL NOT prescribe execution mechanisms"), this file stays technology-agnostic on
