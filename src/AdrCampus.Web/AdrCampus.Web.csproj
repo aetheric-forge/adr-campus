@@ -18,6 +18,7 @@
     <ProjectReference Include="..\AdrCampus.Providers.Library\AdrCampus.Providers.Library.csproj" />
     <ProjectReference Include="..\AdrCampus.Providers.Archive\AdrCampus.Providers.Archive.csproj" />
     <ProjectReference Include="..\AdrCampus.Providers.PostOffice\AdrCampus.Providers.PostOffice.csproj" />
+    <ProjectReference Include="..\AdrCampus.Plugin\AdrCampus.Plugin.csproj" />
     <ProjectReference Include="..\..\runtime\src\Providers\AethericForge.Runtime.Providers.Staging.InMemory\AethericForge.Runtime.Providers.Staging.InMemory.csproj" />
     <ProjectReference Include="..\..\runtime\src\Providers\AethericForge.Runtime.Providers.Staging.Redis\AethericForge.Runtime.Providers.Staging.Redis.csproj" />
     <ProjectReference Include="..\..\runtime\src\Providers\AethericForge.Runtime.Providers.Archive.MongoDb\AethericForge.Runtime.Providers.Archive.MongoDb.csproj" />
@@ -33,6 +34,7 @@
     <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Archive\AethericForge.Runtime.Institutions.Archive.csproj" />
     <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Workbench\AethericForge.Runtime.Institutions.Workbench.csproj" />
     <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.PostOffice\AethericForge.Runtime.Institutions.PostOffice.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Decisions\AethericForge.Runtime.Institutions.Decisions.csproj" />
     <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Identity\AethericForge.Runtime.Services.Identity.csproj" />
     <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Registry\AethericForge.Runtime.Services.Registry.csproj" />
     <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Archive\AethericForge.Runtime.Services.Archive.csproj" />

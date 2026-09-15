@@ -4,6 +4,8 @@ namespace AdrCampus.Plugin;
 
 public sealed class DecisionsPluginPackage : IInstitutionPluginPackage
 {
-    public IReadOnlyCollection<IInstitutionFactory> GetFactories() =>
-        [new DecisionsInstitutionFactory()];
+    public IReadOnlyCollection<IInstitutionFactory> GetFactories() => [];
+
+    public IReadOnlyCollection<IOrganizationFactory> GetOrganizationFactories() =>
+        [new DecisionsOrganizationFactory()];
 }

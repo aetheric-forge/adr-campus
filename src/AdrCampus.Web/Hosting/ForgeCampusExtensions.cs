@@ -1,3 +1,4 @@
+using AdrCampus.Plugin;
 using AdrCampus.Providers.Archive;
 using AdrCampus.Providers.Library;
 using AdrCampus.Providers.PostOffice;
@@ -24,6 +25,7 @@ using AethericForge.Runtime.Institutions.Abstractions.Models;
 using AethericForge.Runtime.Institutions.Abstractions.Primitives;
 using AethericForge.Runtime.Institutions.Archive;
 using AethericForge.Runtime.Institutions.Campus;
+using AethericForge.Runtime.Institutions.Decisions;
 using AethericForge.Runtime.Institutions.Library;
 using AethericForge.Runtime.Institutions.PostOffice;
 using AethericForge.Runtime.Institutions.Registry;
@@ -216,6 +218,16 @@ public static class ForgeCampusExtensions
                 new PostOfficeContext(postOfficeTemplate, serviceProvider, campus),
                 postmaster));
 
+            // The Decisions Office is an Organization, not an Institution: it derives its authority from
+            // this Campus rather than being sovereign, so it's mounted via RegisterOrganization (keyed by
+            // id) instead of Register<T>(). It resolves Archive/Library/PostOffice/Registrar ambiently
+            // from this same Campus rather than owning copies of its own - see
+            // institution/decisions-institution.yaml's `dependencies` block.
+            var decisionsFactory = new DecisionsOrganizationFactory();
+            campus.RegisterOrganization(
+                decisionsFactory.OrganizationId,
+                decisionsFactory.Create(campus, serviceProvider));
+
             return campus;
         });
 
@@ -265,6 +277,11 @@ public static class ForgeCampusExtensions
                 {
                     name = campus.Library.Context.Template.Descriptor.Name,
                     version = campus.Library.Context.Template.Descriptor.Version.ToString()
+                },
+                decisions = new
+                {
+                    name = campus.ResolveOrganization<IDecisions>("decisions").Context.Template.Descriptor.Name,
+                    version = campus.ResolveOrganization<IDecisions>("decisions").Context.Template.Descriptor.Version.ToString()
                 }
             }));
 
