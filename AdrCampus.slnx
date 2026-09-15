@@ -7,6 +7,7 @@
     <Project Path="src/AdrCampus.Providers.Library/AdrCampus.Providers.Library.csproj" />
     <Project Path="src/AdrCampus.Providers.Archive/AdrCampus.Providers.Archive.csproj" />
     <Project Path="src/AdrCampus.Providers.PostOffice/AdrCampus.Providers.PostOffice.csproj" />
+    <Project Path="src/AdrCampus.Plugin/AdrCampus.Plugin.csproj" />
     <Project Path="src/AdrCampus.Web/AdrCampus.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -17,5 +18,6 @@
     <Project Path="tests/AdrCampus.Providers.Library.Tests/AdrCampus.Providers.Library.Tests.csproj" />
     <Project Path="tests/AdrCampus.Providers.Archive.Tests/AdrCampus.Providers.Archive.Tests.csproj" />
     <Project Path="tests/AdrCampus.Providers.PostOffice.Tests/AdrCampus.Providers.PostOffice.Tests.csproj" />
+    <Project Path="tests/AdrCampus.Plugin.Tests/AdrCampus.Plugin.Tests.csproj" />
   </Folder>
 </Solution>
