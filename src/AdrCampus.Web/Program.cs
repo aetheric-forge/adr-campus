@@ -58,7 +58,7 @@ builder.Services.AddScoped<IMemberAuthority, KeycloakMemberAuthority>();
 builder.Services.AddScoped<AdrCampus.Application.Identity.IMemberDisplayNameDirectory, KeycloakMemberDisplayNameDirectory>();
 builder.Services.AddScoped<IDirectoryRosterSource, KeycloakDirectoryRosterSource>();
 builder.Services.AddScoped<DraftApplicationService>();
-builder.Services.AddScoped<ProposalApplicationService>();
+builder.Services.AddScoped<AdrCampus.Plugin.IProposalReviewCaller, AuthenticatedProposalReviewCaller>();
 builder.Services.AddScoped<AdrCampus.Application.Discovery.DiscoveryApplicationService>();
 builder.Services.AddScoped<OrganizationAdministrationService>();
 builder.Services.AddScoped<DraftRecoveryApplicationService>();
