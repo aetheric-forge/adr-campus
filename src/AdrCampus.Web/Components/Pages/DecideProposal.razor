@@ -2,9 +2,7 @@
 @using AdrCampus.Application.Proposals
 @using AdrCampus.Core.Domain
 @using AdrCampus.Web.Drafts
-@inject AuthenticationStateProvider AuthenticationStateProvider
-@inject ProposalApplicationService Proposals
-@inject CurrentOrganization Organization
+@inject AdrCampus.Plugin.IProposalReview Review
 @inject NavigationManager Navigation
 <PageTitle>Decide proposal</PageTitle>
 @if (_loading) { <section class="placeholder-panel"><h1>Preparing decision</h1></section> }
@@ -16,7 +14,7 @@ else { <div class="preview-banner">Confirmation required · This @_outcome.ToStr
     [Parameter] public Guid ProposalId { get; set; }
     [Parameter] public string Outcome { get; set; } = string.Empty;
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
-    private AdrProposal? _proposal; private SupersessionTargetReference? _target; private MemberId? _decider; private DecisionOutcome _outcome; private string _note = string.Empty; private string _normalizedNote = string.Empty; private IReadOnlyList<DecisionNoteValidationError> _errors = []; private string? _error; private bool _loading = true; private bool _confirming; private bool _saving; private readonly OperationId _operationId = OperationId.New();
+    private AdrProposal? _proposal; private SupersessionTargetReference? _target; private DecisionOutcome _outcome; private string _note = string.Empty; private string _normalizedNote = string.Empty; private IReadOnlyList<DecisionNoteValidationError> _errors = []; private string? _error; private bool _loading = true; private bool _confirming; private bool _saving; private readonly OperationId _operationId = OperationId.New();
     private string ActionText => _outcome == DecisionOutcome.Accepted ? "Accept" : "Reject";
     private string NoteLabel => _outcome == DecisionOutcome.Accepted ? "Acceptance note" : "Rejection reason";
     private string NoteRequirement => _outcome == DecisionOutcome.Accepted ? "Optional" : "Required";
@@ -24,9 +22,9 @@ else { <div class="preview-banner">Confirmation required · This @_outcome.ToStr
     private bool HasSafeReturn => DiscoveryReturnContext.IsSafe(ReturnUrl);
     private string ProposalLink => HasSafeReturn ? $"proposals/{ProposalId:D}?returnUrl={Uri.EscapeDataString(ReturnUrl!)}" : $"proposals/{ProposalId:D}";
     private string UnavailableReturnLink => HasSafeReturn ? ReturnUrl! : "proposed";
-    protected override async Task OnParametersSetAsync() { _loading = true; try { if (!TryOutcome()) return; var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var sub = auth.User.FindFirst("sub")?.Value; if (string.IsNullOrWhiteSpace(sub) || ProposalId == Guid.Empty) return; _decider = new MemberId(sub); var prepared = await Proposals.PrepareDecisionAsync(Organization.Id, _decider, new AdrId(ProposalId), _outcome, _note); _proposal = prepared.IsAuthorized && prepared.IsFound ? prepared.Proposal : null; _target = prepared.Target; } finally { _loading = false; } }
-    private async Task ReviewAsync() { if (_proposal is null || _decider is null) return; var prepared = await Proposals.PrepareDecisionAsync(Organization.Id, _decider, new AdrId(ProposalId), _outcome, _note); _errors = prepared.Errors; _target = prepared.Target; if (prepared.IsReady) { _normalizedNote = prepared.Note!; _confirming = true; } }
+    protected override async Task OnParametersSetAsync() { _loading = true; try { if (!TryOutcome()) return; if (ProposalId == Guid.Empty) return; var prepared = await Review.PrepareAsync(new AdrId(ProposalId), _outcome, _note); _proposal = prepared.IsAuthorized && prepared.IsFound ? prepared.Proposal : null; _target = prepared.Target; } finally { _loading = false; } }
+    private async Task ReviewAsync() { if (_proposal is null) return; var prepared = await Review.PrepareAsync(new AdrId(ProposalId), _outcome, _note); _errors = prepared.Errors; _target = prepared.Target; if (prepared.IsReady) { _normalizedNote = prepared.Note!; _confirming = true; } }
     private void EditNote() { _confirming = false; _error = null; }
-    private async Task ConfirmAsync() { if (_saving || _proposal is null || _decider is null) return; _saving = true; try { var result = await Proposals.DecideAsync(new(Organization.Id, _proposal.Id, _proposal.ProposedAtUtc, _decider, _outcome, _normalizedNote, _operationId)); if (result.IsSuccess) { Navigation.NavigateTo($"/{ProposalLink}"); return; } _error = result.Status == AdrCampus.Core.Proposals.DecisionWriteStatus.TargetNotAccepted ? "The intended target is no longer an accepted decision, so this replacement cannot be accepted. No records were changed; you may reject the stale proposal with a reason." : result.Status == AdrCampus.Core.Proposals.DecisionWriteStatus.InvalidRelationship ? "The supersession relationship would be invalid. No records were changed." : result.Status == AdrCampus.Core.Proposals.DecisionWriteStatus.Conflict ? "Another maintainer has already decided this proposal." : result.Errors.Count > 0 ? string.Join(" ", result.Errors.Select(e => e.Message)) : "The decision could not be recorded."; } finally { _saving = false; } }
+    private async Task ConfirmAsync() { if (_saving || _proposal is null) return; _saving = true; try { var result = await Review.DecideAsync(new(_proposal.Id, _proposal.ProposedAtUtc, _outcome, _normalizedNote, _operationId)); if (result.IsSuccess) { Navigation.NavigateTo($"/{ProposalLink}"); return; } _error = result.Status == AdrCampus.Core.Proposals.DecisionWriteStatus.TargetNotAccepted ? "The intended target is no longer an accepted decision, so this replacement cannot be accepted. No records were changed; you may reject the stale proposal with a reason." : result.Status == AdrCampus.Core.Proposals.DecisionWriteStatus.InvalidRelationship ? "The supersession relationship would be invalid. No records were changed." : result.Status == AdrCampus.Core.Proposals.DecisionWriteStatus.Conflict ? "Another maintainer has already decided this proposal." : result.Errors.Count > 0 ? string.Join(" ", result.Errors.Select(e => e.Message)) : "The decision could not be recorded."; } finally { _saving = false; } }
     private bool TryOutcome() { if (Outcome.Equals("accept", StringComparison.OrdinalIgnoreCase)) { _outcome = DecisionOutcome.Accepted; return true; } if (Outcome.Equals("reject", StringComparison.OrdinalIgnoreCase)) { _outcome = DecisionOutcome.Rejected; return true; } return false; }
 }

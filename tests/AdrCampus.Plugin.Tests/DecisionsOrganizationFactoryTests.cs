@@ -1,56 +1,47 @@
-using AethericForge.Runtime.Abstractions.Interfaces.Institutions;
-using AethericForge.Runtime.Institutions.Abstractions.Builders;
-using AethericForge.Runtime.Institutions.Decisions;
-using AethericForge.Runtime.Models.Institutions;
+using AdrCampus.Core.Domain;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace AdrCampus.Plugin.Tests;
 
-public class DecisionsOrganizationFactoryTests
+public sealed class DecisionsOrganizationFactoryTests
 {
-    private sealed class TestInstitution(IInstitutionContext context) : InstitutionBase(context);
-
-    private static IInstitution CreateOwner()
+    [Fact]
+    public void MountsOperationalRecorderUnderGivenOwner()
     {
-        var template = InstitutionTemplateBuilder.Create()
-            .WithDescriptor("TestCampus", new Version(1, 0, 0), "A test owning scope.")
-            .Build();
-        var services = new ServiceCollection().BuildServiceProvider();
-        return new TestInstitution(new InstitutionContext(template, services));
+        using var host = new ReviewHost();
+        Assert.Equal("decisions", new DecisionsOrganizationFactory().OrganizationId);
+        Assert.Same(host.Owner, host.Office.Context.Owner);
+        Assert.IsAssignableFrom<IAdrCampusRecorder>(host.Office.Recorder);
+    }
+
+    [Theory]
+    [InlineData(false, true, "ILibrary")]
+    [InlineData(true, false, "IWorkbench")]
+    public void MissingParentCapabilityHasActionableDiagnostic(bool library, bool workbench, string contract)
+    {
+        using var host = new ReviewHost(library, workbench);
+        var error = Assert.Throws<InvalidOperationException>(() => host.Owner);
+        Assert.Contains(contract, error.Message);
+        Assert.Contains("owning institution", error.Message);
     }
 
     [Fact]
-    public void OrganizationId_IsDecisions()
+    public void MissingDeploymentBindingHasActionableDiagnostic()
     {
-        var factory = new DecisionsOrganizationFactory();
-
-        Assert.Equal("decisions", factory.OrganizationId);
+        using var host = new ReviewHost(mount: false);
+        using var emptyServices = new ServiceCollection().BuildServiceProvider();
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            new DecisionsOrganizationFactory().Create(host.Owner, emptyServices));
+        Assert.Contains("AddDecisionsOffice", error.Message);
     }
 
     [Fact]
-    public void Create_MountsUnderTheGivenOwnerWithARecorder()
+    public void SecondOfficeRegistrationIsRejectedUntilInstanceBindingsAreSupported()
     {
-        var factory = new DecisionsOrganizationFactory();
-        var owner = CreateOwner();
-        var services = new ServiceCollection().BuildServiceProvider();
-
-        var decisions = (IDecisions)factory.Create(owner, services);
-
-        Assert.Same(owner, decisions.Context.Owner);
-        Assert.NotNull(decisions.Recorder);
-    }
-
-    [Fact]
-    public void Create_RegistersCleanlyIntoTheOwnerScope()
-    {
-        var factory = new DecisionsOrganizationFactory();
-        var owner = CreateOwner();
-        var services = new ServiceCollection().BuildServiceProvider();
-
-        var decisions = (IDecisions)factory.Create(owner, services);
-        owner.RegisterOrganization(factory.OrganizationId, decisions);
-
-        Assert.Same(decisions, owner.ResolveOrganization<IDecisions>(factory.OrganizationId));
+        var services = new ServiceCollection();
+        services.AddDecisionsOffice(ReviewHost.Organization, _ => throw new NotImplementedException());
+        Assert.Throws<InvalidOperationException>(() => services.AddDecisionsOffice(
+            new OrganizationId("other"), _ => throw new NotImplementedException()));
     }
 }

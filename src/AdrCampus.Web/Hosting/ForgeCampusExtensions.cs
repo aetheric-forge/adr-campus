@@ -1,6 +1,5 @@
 using AdrCampus.Plugin;
 using AdrCampus.Providers.Archive;
-using AdrCampus.Providers.Library;
 using AdrCampus.Providers.PostOffice;
 using AethericForge.Runtime.Abstractions.Interfaces.Archive.Primitives;
 using AethericForge.Runtime.Abstractions.Interfaces.Archive.Providers;
@@ -234,14 +233,9 @@ public static class ForgeCampusExtensions
         services.AddSingleton<ForgeCampusHost>();
         services.AddHostedService<ForgeCampusHost>(serviceProvider => serviceProvider.GetRequiredService<ForgeCampusHost>());
 
-        services.AddSingleton<AdrCampus.Core.Drafts.IDraftRepository, AdrCampus.Providers.Drafts.Workbench.WorkbenchDraftRepository>();
-        services.AddSingleton<AdrCampus.Core.Drafts.IDraftRecoveryRepository>(sp => (AdrCampus.Providers.Drafts.Workbench.WorkbenchDraftRepository)sp.GetRequiredService<AdrCampus.Core.Drafts.IDraftRepository>());
-        services.AddSingleton<AdrCampus.Core.Drafts.IExpiredDraftPurgeRepository>(sp => (AdrCampus.Providers.Drafts.Workbench.WorkbenchDraftRepository)sp.GetRequiredService<AdrCampus.Core.Drafts.IDraftRepository>());
-        services.AddSingleton<LibraryProposalRepository>(sp => new LibraryProposalRepository(
-            sp.GetRequiredService<ICampus>().Library,
-            sp.GetRequiredService<AdrCampus.Core.Drafts.IDraftRepository>()));
-        services.AddSingleton<AdrCampus.Core.Proposals.IProposalRepository>(sp => sp.GetRequiredService<LibraryProposalRepository>());
-        services.AddSingleton<AdrCampus.Core.Discovery.ISharedRecordRepository>(sp => sp.GetRequiredService<LibraryProposalRepository>());
+        services.AddDecisionsOffice(
+            new AdrCampus.Core.Domain.OrganizationId(configuration["Organization:Id"]!),
+            sp => sp.GetRequiredService<ICampus>());
         services.AddSingleton<AdrCampus.Core.Administration.IOrganizationAdministrationRepository, ArchiveOrganizationAdministrationRepository>();
         services.AddSingleton<AdrCampus.Core.Membership.IMembershipRepository, ArchiveMembershipRepository>();
         services.AddSingleton<AdrCampus.Core.Maintenance.IMaintenancePostOffice>(sp => new PostOfficeMaintenanceDispatcher(sp.GetRequiredService<ICampus>().PostOffice));
