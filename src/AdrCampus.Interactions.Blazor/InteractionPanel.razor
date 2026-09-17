@@ -1,0 +1,86 @@
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components
+@using AethericContracts.Interactions
+@namespace AdrCampus.Interactions.Blazor
+
+@if (Presenter is null)
+{
+    <p role="status">Loading…</p>
+}
+else
+{
+    @if (Presenter.IsBusy) { <p role="status">Working…</p> }
+    @if (Presenter.Messages.Count > 0)
+    {
+        <div class="form-message @(Presenter.IsCompleted ? "" : "form-error")" role="@(Presenter.IsCompleted ? "status" : "alert")">
+            <ul>@foreach (var message in Presenter.Messages) { <li>@message.Text</li> }</ul>
+        </div>
+    }
+    @if (Presenter.View is { } view)
+    {
+        <div class="page-header"><div><h1>@view.Title</h1><p>@view.Description</p></div></div>
+        @if (view.IsAvailable)
+        {
+            <article class="adr-preview">
+                @foreach (var detail in view.Sections)
+                {
+                    <section><h2>@detail.Heading</h2><p style="white-space: pre-wrap">@detail.Text</p></section>
+                }
+            </article>
+            @if (view.Confirmation is { } confirmation)
+            {
+                <section class="preview-banner" aria-label="Confirmation"><p>@confirmation.Prompt</p></section>
+                <article class="adr-preview">
+                    @foreach (var detail in confirmation.Sections)
+                    {
+                        <section><h2>@detail.Heading</h2><p style="white-space: pre-wrap">@detail.Text</p></section>
+                    }
+                </article>
+                <div class="confirmation-actions">
+                    <button type="button" class="button button-secondary" @onclick="Edit" disabled="@(Presenter.IsBusy || !view.CanEdit)">Back</button>
+                    <button type="button" class="button button-primary" @onclick="ConfirmAsync" disabled="@Presenter.IsBusy">@(Presenter.IsBusy ? "Working…" : confirmation.SubmitLabel)</button>
+                </div>
+            }
+            else
+            {
+                <form @onsubmit="ReviewAsync" @onsubmit:preventDefault novalidate>
+                    <fieldset disabled="@Presenter.IsBusy" class="interaction-fields form-placeholder">
+                        @foreach (var field in view.Fields)
+                        {
+                            var fieldId = FieldId(field.Id);
+                            var errors = Presenter.Messages.Where(message => message.FieldId == field.Id).ToArray();
+                            <label for="@fieldId">@field.Label</label>
+                            <p id="@(fieldId + "-help")">@field.Help</p>
+                            <textarea id="@fieldId" rows="6" maxlength="@field.MaxLength" required="@field.Required"
+                                      aria-required="@(field.Required ? "true" : "false")" aria-invalid="@(errors.Length > 0 ? "true" : "false")"
+                                      aria-describedby="@(fieldId + "-help " + fieldId + "-errors")"
+                                      value="@Presenter.Values.GetValueOrDefault(field.Id, "")"
+                                      @oninput="e => Presenter.Values[field.Id] = e.Value?.ToString() ?? string.Empty"></textarea>
+                            <div id="@(fieldId + "-errors")">@foreach (var error in errors) { <p>@error.Text</p> }</div>
+                        }
+                        <button type="submit" class="button button-primary">@view.PrepareLabel</button>
+                    </fieldset>
+                </form>
+            }
+        }
+    }
+    else if (!Presenter.IsCompleted && !Presenter.IsBusy)
+    {
+        <button type="button" class="button button-secondary" @onclick="ReloadAsync">Reload</button>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public InteractionPresenter Presenter { get; set; } = default!;
+    [Parameter] public EventCallback Completed { get; set; }
+    private readonly string _prefix = "interaction-" + Guid.NewGuid().ToString("N");
+    private string FieldId(string id) => _prefix + "-" + id;
+    private Task ReviewAsync() => Presenter.ReviewAsync();
+    private Task ReloadAsync() => Presenter.LoadAsync();
+    private void Edit() => Presenter.Edit();
+    private async Task ConfirmAsync()
+    {
+        await Presenter.ConfirmAsync();
+        if (Presenter.IsCompleted) await Completed.InvokeAsync();
+    }
+}

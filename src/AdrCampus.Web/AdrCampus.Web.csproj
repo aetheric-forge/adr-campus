@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../AdrCampus.Interactions.Blazor/AdrCampus.Interactions.Blazor.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.11" />
     <PackageReference Include="MongoDB.Driver" Version="3.5.0" />
     <ProjectReference Include="..\AdrCampus.Application\AdrCampus.Application.csproj" />

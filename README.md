@@ -45,6 +45,12 @@ The organization bootstraps automatically on startup from the configured groups.
 
 ## Building and testing
 
+Initialize the pinned runtime and shared-contract submodules before building:
+
+```sh
+git submodule update --init --recursive
+```
+
 ```sh
 dotnet build
 dotnet test
@@ -56,6 +62,8 @@ dotnet test
 - `src/AdrCampus.Application` — application services: commands, queries, and authorization.
 - `src/AdrCampus.Providers.*` — storage provider implementations (Workbench-backed and in-memory).
 - `src/AdrCampus.Web` — the Blazor web host: composition root, authentication, and UI.
+- `contracts/` — shared Aetheric contracts, including the interaction vocabulary used by proposal review.
+- `src/AdrCampus.Interactions.Blazor` — reusable rendering for package-described interactions.
 - `runtime/` — the Aetheric Forge Runtime this application is built on.
 - `docs/` — product stories, architecture, and the delivery roadmap.
 - `tests/` — automated tests for the above, mirroring the `src/` layout.

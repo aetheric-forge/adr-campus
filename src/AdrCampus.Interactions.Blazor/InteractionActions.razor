@@ -1,0 +1,23 @@
+@using Microsoft.AspNetCore.Components
+@using AethericContracts.Interactions
+@namespace AdrCampus.Interactions.Blazor
+
+<div class="confirmation-actions">
+    @foreach (var action in Actions)
+    {
+        @if (action.IsEnabled)
+        {
+            <a class="button button-secondary" href="@ActionUrl(action.Id)">@action.Label</a>
+        }
+        else
+        {
+            <span class="action-guidance">@action.UnavailableReason</span>
+            <button type="button" class="button button-secondary" disabled>@action.Label</button>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<InteractionAction> Actions { get; set; } = [];
+    [Parameter, EditorRequired] public Func<string, string> ActionUrl { get; set; } = default!;
+}

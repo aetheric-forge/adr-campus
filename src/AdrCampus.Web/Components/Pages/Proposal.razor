@@ -6,7 +6,9 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject DiscoveryApplicationService Discovery
 @inject CurrentOrganization Organization
-@inject MemberRosterService Roster
+@using AethericContracts.Interactions
+@using AdrCampus.Interactions.Blazor
+@inject IEnumerable<IInteractionProvider> Interactions
 <PageTitle>@(_detail?.Record.Content.Title.Value ?? "ADR")</PageTitle>
 
 @if (_loading) { <section class="placeholder-panel"><h1>Loading ADR</h1></section> }
@@ -22,7 +24,7 @@ else {
         @if (_detail.Relationships.Count > 0 || _detail.UnavailableRelationshipCount > 0) { <section><h2>Related decisions</h2><div class="relationship-list">@foreach (var relationship in _detail.Relationships) { <a href="@RecordLink(relationship.RelatedId)"><strong>@relationship.Direction:</strong> @relationship.RelatedTitle.Value</a> }@if (_detail.UnavailableRelationshipCount > 0) { <p class="action-guidance">@_detail.UnavailableRelationshipCount linked decision@(_detail.UnavailableRelationshipCount == 1 ? " is" : "s are") unavailable or outside your authorized scope.</p> }</div></section> }
     </article>
     <section class="lifecycle-history" aria-labelledby="history-title"><h2 id="history-title">Lifecycle history</h2><ol>@foreach (var item in _detail.History) { <li><span class="history-marker" aria-hidden="true"></span><div><strong>@item.Label</strong><p>@item.Actor.DisplayName · <time datetime="@item.OccurredAtUtc.ToString("O")">@item.OccurredAtUtc.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt")</time></p>@if (!string.IsNullOrEmpty(item.Note)) { <p>@item.Note</p> }</div></li> }</ol></section>
-    @if (_detail.Record.FinalDecision is null && _isMaintainer && !ViewAsMember) { <div class="confirmation-actions"><a class="button button-secondary" href="@DecisionLink("reject")">Reject</a>@if (CanAccept) { <a class="button button-primary" href="@DecisionLink("accept")">Accept</a> } else { <span class="action-guidance">This proposal's frozen target is no longer accepted; reject it with a reason.</span><button class="button button-primary" disabled>Accept</button> }</div> }
+    @if (_reviewActions.Count > 0 && !ViewAsMember) { <InteractionActions Actions="_reviewActions" ActionUrl="DecisionLink" /> }
 }
 
 @if (_detail?.IntendedSupersessionTarget is not null) { <section class="placeholder-panel"><span class="eyebrow">@TargetEyebrow</span><h2>@TargetHeading @_detail.IntendedSupersessionTarget.Title.Value</h2><p class="record-id">ADR @_detail.IntendedSupersessionTarget.Id.Value.ToString("D") · @_detail.IntendedSupersessionTarget.Status</p><p>@TargetExplanation</p><a href="@RecordLink(_detail.IntendedSupersessionTarget.Id)">View target decision</a></section> }
@@ -33,9 +35,8 @@ else {
     [Parameter] public Guid ProposalId { get; set; }
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
     [CascadingParameter(Name = "ViewAsMember")] public bool ViewAsMember { get; set; }
-    private SharedRecordDetail? _detail; private SharedDetailStatus _status; private bool _isMaintainer; private bool _loading = true;
+    private SharedRecordDetail? _detail; private SharedDetailStatus _status; private IReadOnlyList<InteractionAction> _reviewActions = []; private bool _loading = true;
     private bool HasSafeReturn => DiscoveryReturnContext.IsSafe(ReturnUrl);
-    private bool CanAccept => _detail?.Record.IntendedSupersessionTargetId is null || _detail.IntendedSupersessionTarget?.Status == AdrLifecycleStatus.Accepted;
     private string BackLink => HasSafeReturn ? ReturnUrl! : _detail?.Record.Status == AdrLifecycleStatus.Accepted ? "/" : _detail?.Record.Status is AdrLifecycleStatus.Rejected or AdrLifecycleStatus.Superseded ? "/historical" : "/proposed";
     private string BackLabel => HasSafeReturn ? "Back to results" : _detail?.Record.Status == AdrLifecycleStatus.Accepted ? "Current decisions" : _detail?.Record.Status is AdrLifecycleStatus.Rejected or AdrLifecycleStatus.Superseded ? "Historical decisions" : "All proposals";
     private string TargetEyebrow => _detail?.Record.Supersedes is not null ? "Completed supersession" : "Frozen intended target · Read-only";
@@ -47,7 +48,7 @@ else {
     private string InboundProposalExplanation => HasStaleInboundProposals ? "This decision has already been superseded. These competing proposals remain Proposed for historical accuracy, cannot be accepted against this target, and must be rejected by a maintainer with a reason." : "This ADR remains accepted and in effect. Concurrent replacement proposals are allowed; accepting one prevents the others from being accepted against this target.";
     private string StatusLine => _detail?.Record.Status switch { AdrLifecycleStatus.Proposed => $"Awaiting a decision · Proposed {_detail.Record.ProposedAtUtc.ToLocalTime():MMM d, yyyy 'at' h:mm tt}", AdrLifecycleStatus.Accepted => "Accepted and currently in effect", AdrLifecycleStatus.Rejected => "Rejected and retained as organizational history", AdrLifecycleStatus.Superseded => "Superseded and retained as organizational history", _ => "Shared organizational record" };
     private string StatusClass => _detail?.Record.Status switch { AdrLifecycleStatus.Accepted => "role-accepted", AdrLifecycleStatus.Rejected => "role-rejected", AdrLifecycleStatus.Superseded => "role-superseded", _ => "role-proposed" };
-    protected override async Task OnParametersSetAsync() { _loading = true; try { var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var sub = auth.User.FindFirst("sub")?.Value; if (string.IsNullOrWhiteSpace(sub) || ProposalId == Guid.Empty) return; var result = await Discovery.GetDetailAsync(Organization.Id, new MemberId(sub), new AdrId(ProposalId)); _status = result.Status; _detail = result.Detail; var membership = await Roster.GetMembershipAsync(sub); _isMaintainer = membership.IsAvailable && membership.IsMember && membership.IsMaintainer; } finally { _loading = false; } }
+    protected override async Task OnParametersSetAsync() { _loading = true; _reviewActions = []; _detail = null; try { var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync(); var sub = auth.User.FindFirst("sub")?.Value; if (string.IsNullOrWhiteSpace(sub) || ProposalId == Guid.Empty) return; var result = await Discovery.GetDetailAsync(Organization.Id, new MemberId(sub), new AdrId(ProposalId)); _status = result.Status; _detail = result.Detail; _reviewActions = _detail?.Record.Status == AdrLifecycleStatus.Proposed ? await Interactions.Single(item => item.Id == "decisions.review").GetActionsAsync(ProposalId.ToString("D")) : []; } finally { _loading = false; } }
     private string DecisionLink(string outcome) { var baseLink = $"proposals/{ProposalId:D}/decide/{outcome}"; return HasSafeReturn ? $"{baseLink}?returnUrl={Uri.EscapeDataString(ReturnUrl!)}" : baseLink; }
     private string RecordLink(AdrId id) { var baseLink = $"proposals/{id.Value:D}"; return HasSafeReturn ? $"{baseLink}?returnUrl={Uri.EscapeDataString(ReturnUrl!)}" : baseLink; }
 }
