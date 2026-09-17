@@ -14,6 +14,18 @@ Success means that a supported change to a Decisions interaction can be delivere
 
 This is a proposed implementation direction, not a description of completed capabilities. The review covered source and contracts; it did not include an application run or test execution.
 
+## Implementation progress — 2026-09-17
+
+- Milestone 1: proposal-review operational boundary implemented; see [boundary](decisions-review-boundary.md).
+- Milestone 2: package-described review and shared rendering implemented; see [interaction](decisions-review-interaction.md).
+- Milestone 3: executable package definition, generated YAML and reference/binding validation implemented;
+  see [definition](executable-decisions-definition.md). Other workflows remain explicitly descriptive.
+- Authenticated browser acceptance is pending a provisioned test environment. Minerva startup currently
+  fails on missing organization membership configuration; the browser installation smoke test passes.
+- Milestones 4 and 5 remain future work: instance ownership and independent package delivery.
+
+The following baseline and proposed milestones are retained from the original review.
+
 ## Current position
 
 Recent changes provide a useful foundation:

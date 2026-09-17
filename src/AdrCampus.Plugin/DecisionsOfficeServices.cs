@@ -47,10 +47,7 @@ public static class DecisionsOfficeServices
         services.AddSingleton<ISharedRecordRepository>(sp => sp.GetRequiredService<AdrCampusRecorder>().Proposals);
         // Legacy drafting/discovery pages share exactly the same stores while they are migrated.
         services.AddScoped<ProposalApplicationService>();
-        services.AddScoped<AethericContracts.Interactions.IInteractionProvider, ProposalReviewInteractionProvider>();
-        services.AddScoped<IProposalReview>(sp => sp.GetRequiredService<AdrCampusRecorder>().OpenReview(
-            sp.GetRequiredService<IProposalReviewCaller>(), sp.GetRequiredService<IMemberAuthority>(),
-            sp.GetRequiredService<TimeProvider>()));
+        DecisionsOperations.Register(services, DecisionsDefinition.Current);
         return services;
     }
 }

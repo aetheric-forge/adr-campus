@@ -70,8 +70,8 @@ The full ADR Campus suite and website build verify integration. These are automa
 service tests; live browser sign-in and review against deployment infrastructure remain a separate
 acceptance step.
 
-The renderer supports text sections and text fields followed by explicit confirmation. Generic YAML
-execution, dynamic assembly loading, multiple office instances, richer controls and durable interaction
+The renderer supports text sections and text fields followed by explicit confirmation. The [executable definition](executable-decisions-definition.md) now generates YAML and validates review
+references. Dynamic assembly loading, multiple office instances, richer controls and durable interaction
 sessions remain later work. The rest of the record detail page and the other ADR journeys retain their
 existing presentation code.
 

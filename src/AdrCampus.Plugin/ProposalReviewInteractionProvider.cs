@@ -10,7 +10,8 @@ namespace AdrCampus.Plugin;
 public sealed class ProposalReviewInteractionProvider(IProposalReview review,
     ILogger<ProposalReviewInteractionProvider>? logger = null) : IInteractionProvider
 {
-    public string Id => "decisions.review";
+    public const string ProviderId = "decisions.review";
+    public string Id => ProviderId;
     public async Task<IReadOnlyList<InteractionAction>> GetActionsAsync(string subjectId, CancellationToken cancellationToken = default)
     {
         if (!Guid.TryParse(subjectId, out var id) || id == Guid.Empty) return [];
