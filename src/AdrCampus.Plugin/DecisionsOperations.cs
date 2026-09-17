@@ -12,22 +12,15 @@ internal static class DecisionsOperations
 {
     internal const string ReviewId = "decisions.proposal-review";
 
-    internal static void Validate(ExecutionReference reference)
-    {
-        if (reference.Operation != ReviewId)
-            throw new InvalidOperationException($"Unknown Decisions operation '{reference.Operation}'.");
-        if (reference.Version != 1)
-            throw new InvalidOperationException($"Unsupported version {reference.Version} of '{reference.Operation}'; supported version is 1.");
-        if (reference.Interaction != ProposalReviewInteractionProvider.ProviderId)
-            throw new InvalidOperationException($"Unknown interaction '{reference.Interaction}' for '{reference.Operation}'.");
-    }
+    /// <summary>The <see cref="IOfficePackage"/> Decisions supplies to its <see cref="OfficeDefinition"/>.</summary>
+    internal static readonly IOfficePackage Package = new DecisionsPackage();
 
     internal static void Register(IServiceCollection services, OfficeDefinition definition)
     {
         definition.Validate();
         foreach (var execution in definition.Executions)
         {
-            Validate(execution);
+            Package.ValidateExecution(execution);
             services.AddScoped<IProposalReview>(sp => sp.GetRequiredService<AdrCampusRecorder>().OpenReview(
                 sp.GetRequiredService<IProposalReviewCaller>(), sp.GetRequiredService<IMemberAuthority>(),
                 sp.GetRequiredService<TimeProvider>()));
@@ -48,6 +41,23 @@ internal static class DecisionsOperations
             };
             if (!found)
                 throw new InvalidOperationException($"Decisions requires {dependency.Contract} in the owning institution's scope. {dependency.Reason}");
+        }
+    }
+
+    private sealed class DecisionsPackage : IOfficePackage
+    {
+        public string Id => "decisions";
+
+        public IReadOnlyCollection<string> RequiredParentContracts { get; } = ["ILibrary", "IWorkbench"];
+
+        public void ValidateExecution(ExecutionReference reference)
+        {
+            if (reference.Operation != ReviewId)
+                throw new InvalidOperationException($"Unknown Decisions operation '{reference.Operation}'.");
+            if (reference.Version != 1)
+                throw new InvalidOperationException($"Unsupported version {reference.Version} of '{reference.Operation}'; supported version is 1.");
+            if (reference.Interaction != ProposalReviewInteractionProvider.ProviderId)
+                throw new InvalidOperationException($"Unknown interaction '{reference.Interaction}' for '{reference.Operation}'.");
         }
     }
 }

@@ -19,7 +19,8 @@ public sealed record OfficeDefinition(OfficeDescriptor Descriptor,
     IReadOnlyList<OfficeEntry> Domains, IReadOnlyList<OfficeEntry> Organizations,
     IReadOnlyList<OfficeEntry> Roles, IReadOnlyList<OfficeEntry> Capabilities,
     IReadOnlyList<OfficeEntry> Resources, IReadOnlyList<OfficeEntry> Workflows,
-    IReadOnlyList<OfficeEntry> Policies, IReadOnlyList<ParentRequirement> Dependencies)
+    IReadOnlyList<OfficeEntry> Policies, IReadOnlyList<ParentRequirement> Dependencies,
+    [property: JsonIgnore] IOfficePackage Package)
 {
     [JsonIgnore]
     public IEnumerable<ExecutionReference> Executions => Capabilities.Concat(Workflows)
@@ -27,8 +28,8 @@ public sealed record OfficeDefinition(OfficeDescriptor Descriptor,
 
     public void Validate()
     {
-        if (Descriptor.Id != "decisions" || !Version.TryParse(Descriptor.Version, out _))
-            throw new InvalidOperationException("Decisions definition requires id 'decisions' and a valid package version.");
+        if (Descriptor.Id != Package.Id || !Version.TryParse(Descriptor.Version, out _))
+            throw new InvalidOperationException($"{Package.Id} definition requires id '{Package.Id}' and a valid package version.");
         var groups = new[] { Domains, Organizations, Roles, Capabilities, Resources, Workflows, Policies };
         foreach (var entries in groups)
         {
@@ -48,16 +49,17 @@ public sealed record OfficeDefinition(OfficeDescriptor Descriptor,
             if (string.IsNullOrWhiteSpace(resource.Type) || resource.Ownership != "parent")
                 throw new InvalidOperationException($"Resource '{resource.Id}' requires a type and parent ownership; office-owned provisioning is not supported yet.");
         foreach (var execution in Executions)
-            DecisionsOperations.Validate(execution);
+            Package.ValidateExecution(execution);
         if (Dependencies.Select(x => x.Contract).Distinct(StringComparer.Ordinal).Count() != Dependencies.Count)
             throw new InvalidOperationException("Duplicate parent capability requirements.");
         foreach (var dependency in Dependencies.Where(x => x.Required))
-            if (dependency.Contract is not ("ILibrary" or "IWorkbench"))
+            if (!Package.RequiredParentContracts.Contains(dependency.Contract))
                 throw new InvalidOperationException($"Unknown required parent binding '{dependency.Contract}'.");
-        // The repository composition needs both even if a presentation entry is removed.
-        foreach (var contract in new[] { "ILibrary", "IWorkbench" })
+        // The repository composition needs every contract the package requires, even if a
+        // presentation entry for it is removed.
+        foreach (var contract in Package.RequiredParentContracts)
             if (!Dependencies.Any(x => x.Contract == contract && x.Required))
-                throw new InvalidOperationException($"Decisions repository composition requires the '{contract}' binding.");
+                throw new InvalidOperationException($"{Package.Id} repository composition requires the '{contract}' binding.");
         foreach (var workflow in Workflows.Where(x => x.Execution is not null))
             if (!Capabilities.Any(x => x.Execution == workflow.Execution))
                 throw new InvalidOperationException($"Workflow '{workflow.Id}' must reference an execution exposed by a capability.");
@@ -88,7 +90,7 @@ public sealed record OfficeDefinition(OfficeDescriptor Descriptor,
     {
         Validate();
         // JSON flow syntax is valid YAML 1.2; use the built-in serializer, with no YAML runtime dependency.
-        return "# Generated from DecisionsDefinition.Current; edit the C# definition and regenerate.\n" +
+        return $"# Generated from the '{Package.Id}' package definition; edit the C# definition and regenerate.\n" +
             "# YAML 1.2 (JSON flow syntax). Execution references are validated package links.\n" +
             "# Entries without execution, including all policies, are descriptive only.\n" +
             JsonSerializer.Serialize(this, new JsonSerializerOptions
