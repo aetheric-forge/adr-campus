@@ -48,5 +48,6 @@ public static class DecisionsDefinition
             new("IArchive", "Used by remaining host-owned administration composition.", false),
             new("IPostOffice", "Used by remaining host-owned maintenance composition.", false),
             new("IRegistrar", "Identity backing supplied through trusted host adapters.", false)
-        ]);
+        ],
+        DecisionsOperations.Package);
 }
