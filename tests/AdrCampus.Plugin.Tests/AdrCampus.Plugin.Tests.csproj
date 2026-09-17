@@ -24,4 +24,7 @@
     <ProjectReference Include="../../runtime/src/Services/AethericForge.Runtime.Services.Library/AethericForge.Runtime.Services.Library.csproj" />
 
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../../institution/decisions-institution.yaml" Link="decisions-institution.yaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

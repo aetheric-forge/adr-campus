@@ -22,4 +22,7 @@
     <Project Path="tests/AdrCampus.Providers.PostOffice.Tests/AdrCampus.Providers.PostOffice.Tests.csproj" />
     <Project Path="tests/AdrCampus.Plugin.Tests/AdrCampus.Plugin.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/AdrCampus.Definition/AdrCampus.Definition.csproj" />
+  </Folder>
 </Solution>

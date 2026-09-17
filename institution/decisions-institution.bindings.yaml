@@ -1,20 +1,9 @@
-# Bindings for the Decisions Office - HOW it runs in one specific deployment.
-#
-# Everything technology-specific that decisions-institution.yaml deliberately leaves out lives here
-# instead: providers, connection details, and the concrete ambient-resolution path for each dependency.
-# A different deployment of the same institution definition (different Campus, different infra) gets its
-# own bindings file; the institution definition itself doesn't change.
-#
-# Grounded in adr-campus's current composition (ForgeCampusExtensions.AddForgeCampus): Draft Workspace is
-# realized through Decisions' own Workbench, backed by Redis when configured and falling back to an
-# in-memory provider otherwise. IArchive/ILibrary/IPostOffice/IRegistrar are not bound to a provider here
-# at all - they're ambient capabilities resolved from wherever the parent Campus already provides them
-# (per the institutional resolver's nearest-scope rule), so their binding is just the resolution path, not
-# a provider choice. Decision Record isn't listed separately: it's realized entirely through the
-# IArchive/ILibrary bindings below, not a distinct provider.
-#
-# Keys under `bindings` are the id slugs from decisions-institution.yaml's resources (e.g.
-# `draft-workspace`), or contract names for dependencies (e.g. `IArchive`) - never display names.
+# Deployment example only. This file is not read by ADR Campus or the definition tool.
+# The executable definition is DecisionsDefinition.Current. Its generated YAML describes
+# package requirements; it does not provision infrastructure or supply authentication.
+# Actual identity is bound through AddDecisionsOffice; the factory resolves ILibrary and
+# IWorkbench from the owning Institution and fails if either is absent.
+# Provider configuration remains the deployment host's responsibility.
 
 institution: decisions
 version: 1.0.0
@@ -23,20 +12,11 @@ deployment:
   name: forge-decisions
 
 bindings:
-  draft-workspace:
-    provider: workbench
-    stage: adr-campus-workbench
-    backing: redis
-    fallback: in-memory   # used when no Redis connection string is configured
-
-  IArchive:
-    source: campus.archive
-
   ILibrary:
-    source: campus.library
+    source: owner.library
+  IWorkbench:
+    source: owner.workbench
 
-  IPostOffice:
-    source: campus.postoffice
-
-  IRegistrar:
-    source: campus.registrar
+# Existing provider lookup names are preserved, with no data migration.
+# The Workbench stage is adr-campus-workbench; the knowledge scheme is adr-campus.
+# Archive, Post Office and Registry remain host-composed for other application journeys.

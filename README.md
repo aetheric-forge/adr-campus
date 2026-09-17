@@ -67,3 +67,9 @@ dotnet test
 - `runtime/` — the Aetheric Forge Runtime this application is built on.
 - `docs/` — product stories, architecture, and the delivery roadmap.
 - `tests/` — automated tests for the above, mirroring the `src/` layout.
+
+## Institution definition
+
+The Decisions package owns its executable definition and generates the YAML artifact from it. See
+[definition ownership and validation](docs/architecture/executable-decisions-definition.md) for regeneration
+commands, deployment boundaries, and the pending live browser acceptance check.
