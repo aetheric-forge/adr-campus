@@ -2,3 +2,6 @@
 	path = runtime
 	url = https://github.com/aetheric-forge/aetheric-runtime.git
 	branch = main
+[submodule "contracts"]
+	path = contracts
+	url = https://github.com/aetheric-forge/aetheric-contracts.git

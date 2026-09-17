@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+    <ProjectReference Include="../../contracts/src/AethericContracts.Interactions/AethericContracts.Interactions.csproj" />
     <ProjectReference Include="../AdrCampus.Application/AdrCampus.Application.csproj" />
     <ProjectReference Include="../AdrCampus.Providers.Drafts.Workbench/AdrCampus.Providers.Drafts.Workbench.csproj" />
     <ProjectReference Include="../AdrCampus.Providers.Library/AdrCampus.Providers.Library.csproj" />
