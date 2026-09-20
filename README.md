@@ -73,3 +73,5 @@ dotnet test
 The Decisions package owns its executable definition and generates the YAML artifact from it. See
 [definition ownership and validation](docs/architecture/executable-decisions-definition.md) for regeneration
 commands, deployment boundaries, and the pending live browser acceptance check.
+
+A separate [provisioning export](docs/architecture/decisions-provisioning-export.md) derives resource requirements and example bindings from the same package definition and checks them against the runtime reader/planner.

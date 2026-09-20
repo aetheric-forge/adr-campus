@@ -27,4 +27,8 @@
   <ItemGroup>
     <None Include="../../institution/decisions-institution.yaml" Link="decisions-institution.yaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../runtime/src/Provisioning/Aetheric.Provisioning.Definitions/Aetheric.Provisioning.Definitions.csproj" />
+    <None Include="../../institution/provisioning/*.yaml" Link="provisioning/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

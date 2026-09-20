@@ -77,3 +77,7 @@ Once that environment is available, verify sign-in, accept and reject on disposa
 required rejection notes, confirmation content, return navigation, and a second review after the
 proposal has already been decided. Use a member-only test account to verify unavailable review actions
 and protected direct routes. Package tests cover direct invocation and retry guarantees independently.
+
+## Provisioning projection
+
+The package artifact remains the executable composition description. A separate [generated provisioning projection](decisions-provisioning-export.md) translates its required dependencies and resources into the runtime deployment schema; it does not install or mount the package.
