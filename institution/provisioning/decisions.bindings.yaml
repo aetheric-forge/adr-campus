@@ -1,0 +1,16 @@
+# Generated provisioning projection; edit the package definition and regenerate.
+{
+  "institution": "decisions",
+  "version": "1.0.0",
+  "deployment": {
+    "name": "example"
+  },
+  "bindings": {
+    "ILibrary": {
+      "source": "owner.library"
+    },
+    "IWorkbench": {
+      "source": "owner.workbench"
+    }
+  }
+}
