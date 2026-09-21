@@ -16,4 +16,4 @@ Tests round-trip the owner into the actual runtime Parent contract, check the ex
 
 Validation: all 248 ADR Campus tests passed. The runtime companion's 25 focused Workbench, Library and composite-resolver tests passed with no skips against isolated Redis and MongoDB. Redis tests used database 2 and verified authentication failure, ownership mismatch, expiring/malformed registration, unregistered legacy data, cancellation, and unchanged draft data. No application deployment or legacy-data migration was attempted.
 
-Runtime is pinned to `dbbaebd065dc9a4904ad08e7acd40d813791e51d`, based on current main `1a1d74e` (durable RabbitMQ transport) plus the companion Workbench verifier. Merge the runtime companion before this pin update.
+Runtime is pinned to `73a843f6b550eb63711c852e52004f28f5a855bf`, including current main `d058ed2` (durable RabbitMQ, Keycloak/S3 credentials, and Workbench provider construction) plus the companion Workbench verifier. Merge the runtime companion before this pin update.
