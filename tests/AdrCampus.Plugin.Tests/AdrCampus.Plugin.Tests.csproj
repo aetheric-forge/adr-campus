@@ -31,4 +31,5 @@
     <ProjectReference Include="../../runtime/src/Provisioning/Aetheric.Provisioning.Definitions/Aetheric.Provisioning.Definitions.csproj" />
     <None Include="../../institution/provisioning/*.yaml" Link="provisioning/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../runtime/src/Tools/Aetheric.Provisioning.Worker/Aetheric.Provisioning.Worker.csproj" /></ItemGroup>
 </Project>
