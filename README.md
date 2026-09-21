@@ -75,3 +75,5 @@ The Decisions package owns its executable definition and generates the YAML arti
 commands, deployment boundaries, and the pending live browser acceptance check.
 
 A separate [provisioning export](docs/architecture/decisions-provisioning-export.md) derives resource requirements and example bindings from the same package definition and checks them against the runtime reader/planner.
+
+[Existing owner capability bindings](docs/architecture/decisions-owner-capabilities.md) define the next deployment integration boundary for inherited Library and Workbench.
