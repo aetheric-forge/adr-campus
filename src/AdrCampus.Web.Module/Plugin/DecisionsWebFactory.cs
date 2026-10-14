@@ -93,7 +93,10 @@ public sealed class DecisionsWebFactory : IOrganizationFactory
         services.AddScoped<IDirectoryRosterSource, KeycloakDirectoryRosterSource>();
         services.AddScoped<IOrganizationBootstrapVerifier, KeycloakOrganizationBootstrapVerifier>();
         services.AddSingleton(new CurrentOrganization(organizationId));
-        var keycloak = InstitutionServiceConfiguration.Resolve(configuration, "Registry", "Keycloak");
+        var keycloak = configuration.GetSection("Decisions:Directory:Keycloak").Exists()
+            ? new ConfigurationBuilder().AddInMemoryCollection(configuration.GetSection("Decisions:Directory:Keycloak")
+                .AsEnumerable(true).Where(pair => pair.Value is not null).Select(pair => new KeyValuePair<string, string?>("Keycloak:" + pair.Key, pair.Value))).Build()
+            : InstitutionServiceConfiguration.Resolve(configuration, "Registry", "Keycloak");
         var normalized = new ConfigurationBuilder().AddConfiguration(configuration).AddConfiguration(keycloak).Build();
         services.AddHttpClient(MemberRosterService.HttpClientName);
         services.AddSingleton(sp => new MemberRosterService(sp.GetRequiredService<IHttpClientFactory>(), normalized,
