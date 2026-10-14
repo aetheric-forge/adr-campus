@@ -66,12 +66,15 @@ public sealed class DecisionsWebFactory : IOrganizationFactory
         // Contribute the existing Decisions schemes to its owner's Library and Archive.
         services.AddKeyedSingleton<IKnowledgeProvider>("Library", (sp, _) => new MongoDbKnowledgeProvider(sp.GetRequiredKeyedService<IMongoDatabase>("Decisions"), "adr-campus", "knowledge"));
         var s3 = InstitutionServiceConfiguration.Resolve(configuration, "Decisions", "S3");
-        services.AddKeyedSingleton<IArchiveProvider>("Archive", (_, _) => new S3ArchiveProvider(new AmazonS3Client(
+        _ = Required(s3, "S3:ServiceUrl");
+        services.AddKeyedSingleton<IAmazonS3>("Decisions", (_, _) => new AmazonS3Client(
             new BasicAWSCredentials(s3["S3:AccessKey"], s3["S3:SecretKey"]), new AmazonS3Config
             {
                 ServiceURL = Required(s3, "S3:ServiceUrl"), ForcePathStyle = s3.GetValue("S3:ForcePathStyle", true),
                 AuthenticationRegion = s3.GetValue("S3:AuthenticationRegion", "us-east-1")
-            }), "adr-campus", s3.GetValue("S3:BucketName", "forge-campus-archive")!, "adr-campus"));
+            }));
+        services.AddKeyedSingleton<IArchiveProvider>("Archive", (sp, _) => new S3ArchiveProvider(sp.GetRequiredKeyedService<IAmazonS3>("Decisions"),
+            "adr-campus", s3.GetValue("S3:BucketName", "forge-campus-archive")!, "adr-campus"));
         services.AddDecisionsOffice(organizationId, Owner);
         services.AddSingleton<IOrganizationAdministrationRepository>(sp => new ArchiveOrganizationAdministrationRepository(sp.GetRequiredKeyedService<IArchivist>("Archive")));
         services.AddSingleton<IMembershipRepository>(sp => new ArchiveMembershipRepository(sp.GetRequiredKeyedService<IArchivist>("Archive")));
