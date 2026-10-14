@@ -9,9 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../AdrCampus.Web.Module/AdrCampus.Web.Module.csproj" />
     <ProjectReference Include="../AdrCampus.Interactions.Blazor/AdrCampus.Interactions.Blazor.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.11" />
-    <PackageReference Include="MongoDB.Driver" Version="3.5.0" />
+    <PackageReference Include="MongoDB.Driver" Version="3.11.2" />
     <ProjectReference Include="..\AdrCampus.Application\AdrCampus.Application.csproj" />
     <ProjectReference Include="..\AdrCampus.Core\AdrCampus.Core.csproj" />
     <ProjectReference Include="..\AdrCampus.Providers.Drafts.InMemory\AdrCampus.Providers.Drafts.InMemory.csproj" />

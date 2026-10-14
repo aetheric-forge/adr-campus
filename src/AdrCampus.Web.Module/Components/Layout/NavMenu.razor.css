@@ -1,0 +1,21 @@
+.brand-row { height: 72px; display: flex; align-items: center; padding: 0 22px; border-bottom: 1px solid rgba(255,255,255,.09); }
+.brand { display: flex; align-items: center; gap: 11px; color: #fff; font-size: 1.05rem; font-weight: 700; text-decoration: none; letter-spacing: -.01em; }
+.brand-mark { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid #7ca88e; border-radius: 8px; color: #bfe0cb; font-family: Georgia, serif; }
+.navbar-toggler { appearance: none; cursor: pointer; width: 42px; height: 36px; position: absolute; top: 18px; right: 18px; border: 1px solid rgba(255,255,255,.25); border-radius: 6px; background: linear-gradient(#fff,#fff) center 10px/20px 2px no-repeat, linear-gradient(#fff,#fff) center 17px/20px 2px no-repeat, linear-gradient(#fff,#fff) center 24px/20px 2px no-repeat; }
+.nav-scrollable { padding: 20px 14px; }
+.nav-section { margin-bottom: 24px; }
+.nav-heading { display: block; padding: 0 10px 8px; color: #84938c; font-size: .67rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.nav-item { margin: 2px 0; }
+.nav-item ::deep .nav-link { min-height: 40px; padding: 8px 11px; display: flex; align-items: center; gap: 10px; border-radius: 7px; color: #c7d0cb; font-size: .9rem; text-decoration: none; }
+.nav-item ::deep .nav-link:hover { background: rgba(255,255,255,.06); color: #fff; }
+.nav-item ::deep .nav-link.active { background: #2a483a; color: #fff; }
+.nav-icon { width: 20px; color: #90b49e; font-size: 1rem; text-align: center; }
+@media (min-width: 761px) {
+    .navbar-toggler { display: none; }
+    .nav-scrollable { height: calc(100vh - 72px); overflow-y: auto; position: sticky; top: 72px; }
+}
+@media (max-width: 760px) {
+    .nav-scrollable { display: none; }
+    .navbar-toggler:checked ~ .nav-scrollable { display: block; }
+}
+.view-banner { padding: 8px 20px; background: #d5a947; color: #17231f; font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
