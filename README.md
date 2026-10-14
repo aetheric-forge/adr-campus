@@ -77,3 +77,15 @@ commands, deployment boundaries, and the pending live browser acceptance check.
 A separate [provisioning export](docs/architecture/decisions-provisioning-export.md) derives resource requirements and example bindings from the same package definition and checks them against the runtime reader/planner.
 
 [Existing owner capability bindings](docs/architecture/decisions-owner-capabilities.md) define the next deployment integration boundary for inherited Library and Workbench.
+
+## Aetheric web shell module
+
+`src/AdrCampus.Web.Module` adapts the current Decisions organization plugin for aetheric-web. It exposes the existing workflow pages at `/decisions`, uses namespaced CSS, and delegates organization creation to `DecisionsOrganizationFactory`. Its UI namespace is `AdrCampus.Shell`, separate from the standalone host. The existing standalone routes remain available.
+
+The adapter requires an existing owning institution with Library and Workbench. The shell mounts it under its Architecture faculty, whose ancestor campus supplies these capabilities. Archive administration and Post Office maintenance use the owner's facilities. Decisions does not create a sovereign campus or provision a substitute owner.
+
+Deployment settings retain `Organization:*`, scoped `Decisions:MongoDb`, `Decisions:S3`, and `Registry:Keycloak` credentials. Parent Library and Archive adapters use their own credentials; Decisions contributes only its existing `adr-campus` schemes under the owner's keyed provider registries. Existing `adr-campus` knowledge/Archive keys, `adr-campus-workbench` staging and organization IDs remain unchanged.
+
+Membership/maintainer checks, authenticated proposal-review callers and existing office operations remain package-owned. Background services can be disabled for isolated validation with `Decisions:BackgroundServicesEnabled=false`; production defaults to the existing bootstrap, synchronization, and maintenance services.
+
+Validate with `dotnet test AdrCampus.slnx --configuration Release` and publish `src/AdrCampus.Web` to produce both the standalone output and reusable module assets.

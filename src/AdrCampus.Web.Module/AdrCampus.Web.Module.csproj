@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><RootNamespace>AdrCampus.Shell</RootNamespace><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><GenerateDependencyFile>true</GenerateDependencyFile><CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies></PropertyGroup>
+  <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../AdrCampus.Plugin/AdrCampus.Plugin.csproj" />
+    <ProjectReference Include="../AdrCampus.Application/AdrCampus.Application.csproj" />
+    <ProjectReference Include="../AdrCampus.Core/AdrCampus.Core.csproj" />
+    <ProjectReference Include="../AdrCampus.Interactions.Blazor/AdrCampus.Interactions.Blazor.csproj" />
+    <ProjectReference Include="../AdrCampus.Providers.Archive/AdrCampus.Providers.Archive.csproj" />
+    <ProjectReference Include="../AdrCampus.Providers.PostOffice/AdrCampus.Providers.PostOffice.csproj" />
+    <ProjectReference Include="../../runtime/src/Providers/AethericForge.Runtime.Providers.Identity.Keycloak/AethericForge.Runtime.Providers.Identity.Keycloak.csproj" />
+    <ProjectReference Include="../../runtime/src/Providers/AethericForge.Runtime.Providers.Knowledge.MongoDb/AethericForge.Runtime.Providers.Knowledge.MongoDb.csproj" />
+    <ProjectReference Include="../../runtime/src/Providers/AethericForge.Runtime.Providers.Archive.S3/AethericForge.Runtime.Providers.Archive.S3.csproj" />
+    <ProjectReference Include="../../primitives/src/Primitives.MongoDb/Primitives.MongoDb.csproj" />
+  </ItemGroup>
+</Project>

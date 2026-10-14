@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/AdrCampus.Web.Module/AdrCampus.Web.Module.csproj" />
     <Project Path="src/AdrCampus.Interactions.Blazor/AdrCampus.Interactions.Blazor.csproj" />
     <Project Path="src/AdrCampus.Application/AdrCampus.Application.csproj" />
     <Project Path="src/AdrCampus.Core/AdrCampus.Core.csproj" />

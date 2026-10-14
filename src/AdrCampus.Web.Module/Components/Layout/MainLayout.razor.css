@@ -1,0 +1,23 @@
+.page { min-height: 100vh; display: flex; background: #f5f4ef; }
+.sidebar { width: 264px; flex: 0 0 264px; background: #17231f; }
+main { min-width: 0; flex: 1; }
+.top-row { min-height: 72px; padding: 0 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #deddd6; background: rgba(255, 255, 252, .92); }
+.organization, .account, .account-identity { display: flex; }
+.organization { flex-direction: column; gap: 2px; }
+.organization-label, .account small { color: #6c716d; font-size: .74rem; }
+.account { align-items: center; gap: 10px; }
+.account-identity { flex-direction: column; }
+.account-view-toggle, .account-signout { padding: 4px 0; border: 0; background: transparent; color: #24533c; font: inherit; font-size: .78rem; cursor: pointer; }
+.account-view-toggle:hover, .account-signout:hover { text-decoration: underline; }
+.avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #dbe7df; color: #24533c; font-size: .75rem; font-weight: 700; }
+.content { width: min(1120px, 100%); margin: 0 auto; padding: 54px 48px 80px; }
+#blazor-error-ui { color-scheme: light only; background: #fff1c7; bottom: 0; box-shadow: 0 -1px 4px rgba(0,0,0,.15); display: none; left: 0; padding: .8rem 1.25rem; position: fixed; width: 100%; z-index: 1000; }
+#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: .75rem; }
+@media (max-width: 760px) {
+    .page { display: block; }
+    .sidebar { width: 100%; }
+    .top-row { min-height: 60px; padding: 0 20px; }
+    .organization { display: none; }
+    .top-row { justify-content: flex-end; }
+    .content { padding: 36px 20px 60px; }
+}

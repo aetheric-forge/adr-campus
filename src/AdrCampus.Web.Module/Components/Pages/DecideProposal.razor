@@ -1,0 +1,31 @@
+@rendermode InteractiveServer
+@page "/decisions/proposals/{ProposalId:guid}/decide/{Outcome}"
+@using AethericContracts.Interactions
+@using AdrCampus.Interactions.Blazor
+@using AdrCampus.Shell.Drafts
+@inject IEnumerable<IInteractionProvider> Interactions
+@inject NavigationManager Navigation
+
+<PageTitle>@(_presenter?.View?.Title ?? "Review")</PageTitle>
+<InteractionPanel @key="_presenter" Presenter="_presenter!" Completed="ReturnToRecord" />
+<a class="button button-secondary" href="@ReturnLink">Return to record</a>
+
+@code {
+    [Parameter] public Guid ProposalId { get; set; }
+    [Parameter] public string Outcome { get; set; } = string.Empty;
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+    private InteractionPresenter? _presenter;
+    private string ReturnLink => DiscoveryReturnContext.IsSafe(ReturnUrl)
+        ? $"/decisions/proposals/{ProposalId:D}?returnUrl={Uri.EscapeDataString(ReturnUrl!)}"
+        : $"/decisions/proposals/{ProposalId:D}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var provider = Interactions.Single(item => item.Id == "decisions.review");
+        var presenter = new InteractionPresenter(provider.Open(ProposalId.ToString("D"), Outcome));
+        _presenter = presenter;
+        await presenter.LoadAsync();
+    }
+
+    private void ReturnToRecord() => Navigation.NavigateTo(ReturnLink);
+}
