@@ -7,6 +7,8 @@ if (args.Length == 2 && args[0] is "--write-provisioning" or "--check-provisioni
     {
         ["decisions.yaml"] = OfficeProvisioningExport.Definition(definition),
         ["decisions.bindings.yaml"] = OfficeProvisioningExport.Bindings(definition, "example",
+            new Dictionary<string, string> { ["ILibrary"] = "owner.library", ["IWorkbench"] = "owner.workbench" }),
+        ["decisions.production.bindings.yaml"] = OfficeProvisioningExport.Bindings(definition, "production",
             new Dictionary<string, string> { ["ILibrary"] = "owner.library", ["IWorkbench"] = "owner.workbench" })
     };
     if (args[0] == "--write-provisioning") Directory.CreateDirectory(args[1]);
@@ -20,7 +22,7 @@ if (args.Length == 2 && args[0] is "--write-provisioning" or "--check-provisioni
             return 1;
         }
     }
-    Console.WriteLine("Provisioning artifacts match the package definition (example bindings only).");
+    Console.WriteLine("Provisioning artifacts match the package definition (example and production bindings).");
     return 0;
 }
 
