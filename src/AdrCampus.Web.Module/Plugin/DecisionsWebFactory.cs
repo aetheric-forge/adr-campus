@@ -75,7 +75,8 @@ public sealed class DecisionsWebFactory : IOrganizationFactory
             }));
         services.AddKeyedSingleton<IArchiveProvider>("Archive", (sp, _) => new S3ArchiveProvider(sp.GetRequiredKeyedService<IAmazonS3>("Decisions"),
             "adr-campus", s3.GetValue("S3:BucketName", "forge-campus-archive")!, "adr-campus"));
-        services.AddDecisionsOffice(organizationId, Owner);
+        services.AddDecisionsOffice(organizationId, Owner,
+            configuration["Decisions:Workbench:Stage"] ?? "adr-campus-workbench");
         services.AddSingleton<IOrganizationAdministrationRepository>(sp => new ArchiveOrganizationAdministrationRepository(sp.GetRequiredKeyedService<IArchivist>("Archive")));
         services.AddSingleton<IMembershipRepository>(sp => new ArchiveMembershipRepository(sp.GetRequiredKeyedService<IArchivist>("Archive")));
         services.AddSingleton<IMaintenancePostOffice>(sp => new PostOfficeMaintenanceDispatcher(Owner(sp).Resolve<IPostOffice>()));

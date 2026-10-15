@@ -9,15 +9,17 @@ public sealed class WorkbenchDraftRepositoryTests
     private static readonly MemberId Author = new("author-1");
     private static readonly DateTimeOffset Now = new(2026, 9, 1, 18, 0, 0, TimeSpan.Zero);
 
-    [Fact]
-    public async Task DraftsSurviveRepositoryRecomposition()
+    [Theory]
+    [InlineData("adr-campus-workbench")]
+    [InlineData("orchard-sky-workbench")]
+    public async Task DraftsSurviveRepositoryRecomposition(string stage)
     {
-        var staging = WorkbenchTestSupport.NewStagingProvider();
-        var first = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
+        var staging = new AethericForge.Runtime.Providers.Staging.InMemory.InMemoryStagingProvider(stage);
+        var first = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging), stage);
         var draft = Draft();
         await first.CreateAsync(draft, OperationId.New());
 
-        var recomposed = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging));
+        var recomposed = new WorkbenchDraftRepository(WorkbenchTestSupport.Artificer(staging), stage);
         var loaded = await recomposed.GetByAuthorAsync(Organization, Author, draft.Id);
 
         Assert.Equal(draft, loaded);

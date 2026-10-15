@@ -35,7 +35,8 @@ internal sealed class ReviewHost : IDisposable
     public IDecisions Office => Owner.ResolveOrganization<IDecisions>("decisions");
     public Authority Membership { get; } = new();
 
-    public ReviewHost(bool includeLibrary = true, bool includeWorkbench = true, bool mount = true)
+    public ReviewHost(bool includeLibrary = true, bool includeWorkbench = true, bool mount = true,
+        string workbenchStage = "adr-campus-workbench")
     {
         var services = new ServiceCollection();
         services.AddSingleton<IKnowledgeProvider>(new InMemoryKnowledgeProvider("adr-campus"));
@@ -48,7 +49,7 @@ internal sealed class ReviewHost : IDisposable
         services.AddScoped<IMemberAuthority>(_ => Membership);
         services.AddScoped<Caller>();
         services.AddScoped<IProposalReviewCaller>(sp => sp.GetRequiredService<Caller>());
-        services.AddDecisionsOffice(Organization, sp => sp.GetRequiredService<IInstitution>());
+        services.AddDecisionsOffice(Organization, sp => sp.GetRequiredService<IInstitution>(), workbenchStage);
         services.AddSingleton<IInstitution>(sp =>
         {
             var template = InstitutionTemplateBuilder.Create()
@@ -59,7 +60,7 @@ internal sealed class ReviewHost : IDisposable
                     new LibraryContext(template, sp, owner)));
             if (includeWorkbench)
             {
-                var artificer = new Artificer(new StagingService([new InMemoryStagingProvider("adr-campus-workbench")]),
+                var artificer = new Artificer(new StagingService([new InMemoryStagingProvider(workbenchStage)]),
                     new Team<IWorkbenchWorker>([]));
                 owner.Register<IWorkbench>(new Workbench(new WorkbenchContext(template, sp, owner),
                     artificer, new WorkbenchService()));
