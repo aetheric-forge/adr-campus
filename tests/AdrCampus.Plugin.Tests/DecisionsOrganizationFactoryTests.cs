@@ -7,6 +7,26 @@ namespace AdrCampus.Plugin.Tests;
 public sealed class DecisionsOrganizationFactoryTests
 {
     [Fact]
+    public async Task Custom_parent_workspace_supports_drafting_and_proposal_without_a_legacy_stage()
+    {
+        using var host = new ReviewHost(workbenchStage: "orchard-sky-workbench");
+        var proposal = await host.SeedAsync();
+        Assert.Equal(ReviewHost.Organization, proposal.OrganizationId);
+        Assert.Equal(ReviewHost.Maintainer, proposal.AuthorId);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("stage:other")]
+    [InlineData(" stage")]
+    public void Invalid_workspace_binding_is_rejected_before_mount(string stage)
+    {
+        var services = new ServiceCollection();
+        Assert.Throws<ArgumentException>(() => services.AddDecisionsOffice(
+            ReviewHost.Organization, _ => throw new NotImplementedException(), stage));
+    }
+
+    [Fact]
     public void MountsOperationalRecorderUnderGivenOwner()
     {
         using var host = new ReviewHost();

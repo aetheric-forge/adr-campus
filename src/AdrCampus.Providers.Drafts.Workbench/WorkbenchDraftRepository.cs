@@ -13,9 +13,12 @@ namespace AdrCampus.Providers.Drafts.Workbench;
 /// Workbench institution's staging area. Proposals and shared/decided records no longer live here; see
 /// AdrCampus.Providers.Library.LibraryProposalRepository.
 /// </summary>
-public sealed class WorkbenchDraftRepository(IArtificer artificer) : IDraftRepository, IDraftRecoveryRepository, IExpiredDraftPurgeRepository
+public sealed class WorkbenchDraftRepository(IArtificer artificer, string stage = "adr-campus-workbench") : IDraftRepository, IDraftRecoveryRepository, IExpiredDraftPurgeRepository
 {
-    private const string Stage = "adr-campus-workbench";
+    private readonly string Stage = ValidateStage(stage);
+    public static string ValidateStage(string stage) => stage is not null
+        && System.Text.RegularExpressions.Regex.IsMatch(stage, @"\A[a-z0-9][a-z0-9-]{0,62}\z")
+        ? stage : throw new ArgumentException("A valid provisioned Workbench stage is required.", nameof(stage));
     private const string CatalogKey = "adr-campus/drafts/catalog-v1";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private IStagingReference Reference => new StagingReference(Stage, CatalogKey);

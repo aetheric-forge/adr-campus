@@ -37,7 +37,7 @@ public sealed class DecisionsOrganizationFactory : IOrganizationFactory
         owner.TryResolve<ILibrary>(out var library);
         owner.TryResolve<IWorkbench>(out var workbench);
 
-        var drafts = new WorkbenchDraftRepository(workbench!.Artificer);
+        var drafts = new WorkbenchDraftRepository(workbench!.Artificer, binding.WorkbenchStage);
         var proposals = new LibraryProposalRepository(library!, drafts);
         var context = new DecisionsContext(Template, services, owner);
         return new Decisions(context, new AdrCampusRecorder(binding.OrganizationId, drafts, proposals));

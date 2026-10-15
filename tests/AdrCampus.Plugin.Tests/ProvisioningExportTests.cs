@@ -20,18 +20,21 @@ public sealed class ProvisioningExportTests
         return new(Document(definition, "decisions.yaml"), Document(bindings, "decisions.bindings.yaml"));
     }
 
-    [Fact]
-    public void Checked_in_exports_match_generator_and_plan_only_required_parent_checks()
+    [Theory]
+    [InlineData("example", "decisions.bindings.yaml")]
+    [InlineData("production", "decisions.production.bindings.yaml")]
+    public void Checked_in_exports_match_generator_and_plan_only_required_parent_checks(string environment, string bindingsFile)
     {
         var definition = DecisionsDefinition.Current;
         var text = OfficeProvisioningExport.Definition(definition);
-        var bindings = OfficeProvisioningExport.Bindings(definition, "example", Sources);
-        foreach (var (name, expected) in new[] { ("decisions.yaml", text), ("decisions.bindings.yaml", bindings) })
+        var bindings = OfficeProvisioningExport.Bindings(definition, environment, Sources);
+        foreach (var (name, expected) in new[] { ("decisions.yaml", text), (bindingsFile, bindings) })
             Assert.Equal(expected, File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "provisioning", name)).Replace("\r\n", "\n"));
         var bundle = Bundle(text, bindings);
         var read = new InstitutionYamlReader().Read(bundle);
         Assert.Empty(read.Issues);
         var loaded = Assert.IsType<LoadedInstitution>(read.Institution);
+        Assert.Equal(environment, loaded.Bindings.Environment);
         Assert.Equal(new[] { "ILibrary", "IWorkbench" }, loaded.Requirements.ParentContracts);
         Assert.All(loaded.Requirements.Resources, resource => Assert.Equal("parent", resource.Ownership));
         Assert.Empty(loaded.Bindings.Resources);

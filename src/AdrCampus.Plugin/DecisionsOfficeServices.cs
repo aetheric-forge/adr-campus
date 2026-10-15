@@ -4,6 +4,7 @@ using AdrCampus.Core.Discovery;
 using AdrCampus.Core.Domain;
 using AdrCampus.Core.Drafts;
 using AdrCampus.Core.Proposals;
+using AdrCampus.Providers.Drafts.Workbench;
 using AethericForge.Runtime.Abstractions.Interfaces.Institutions;
 using AethericForge.Runtime.Institutions.Decisions;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace AdrCampus.Plugin;
 
 /// <summary>Trusted deployment binding for the single office currently supported by this package.</summary>
-public sealed record DecisionsOfficeBinding(OrganizationId OrganizationId);
+public sealed record DecisionsOfficeBinding(OrganizationId OrganizationId, string WorkbenchStage = "adr-campus-workbench");
 
 public static class DecisionsOfficeServices
 {
@@ -22,7 +23,8 @@ public static class DecisionsOfficeServices
     /// mount the organization; the owner mounts DecisionsOrganizationFactory during composition.
     /// </summary>
     public static IServiceCollection AddDecisionsOffice(this IServiceCollection services,
-        OrganizationId organizationId, Func<IServiceProvider, IInstitution> resolveOwner)
+        OrganizationId organizationId, Func<IServiceProvider, IInstitution> resolveOwner,
+        string workbenchStage = "adr-campus-workbench")
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(resolveOwner);
@@ -32,7 +34,7 @@ public static class DecisionsOfficeServices
         if (string.IsNullOrWhiteSpace(organizationId.Value))
             throw new ArgumentException("Decisions requires a non-empty organization identity.", nameof(organizationId));
 
-        services.AddSingleton(new DecisionsOfficeBinding(organizationId));
+        services.AddSingleton(new DecisionsOfficeBinding(organizationId, WorkbenchDraftRepository.ValidateStage(workbenchStage)));
         services.TryAddSingleton<TimeProvider>(TimeProvider.System);
         services.AddSingleton<AdrCampusRecorder>(sp =>
         {
